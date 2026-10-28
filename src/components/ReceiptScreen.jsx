@@ -50,7 +50,7 @@ export default function ReceiptScreen({
     return String(receipts.length + 1);
   }, [receipts.length]);
 
-  const nextReceiptNo = customReceiptNo || autoReceiptNo;
+  const nextReceiptNo = autoReceiptNo;
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === selectedCustomerId) || null;
@@ -86,13 +86,22 @@ export default function ReceiptScreen({
   };
 
   const getReceiptMessageText = (receipt, customer) => {
+    const bal = Storage.getCustomerBalance(customer?.id || receipt.customerId);
     return (
-      `*${shop.name || 'KVK THANIYA MANDI'} - PAYMENT RECEIPT*\n` +
-      `Receipt No: No. ${receipt.receiptNo}\n` +
+      `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+      `No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI\n` +
+      `Cell: 94866 - 68732 / 94439 - 95160\n\n` +
+      `*PAYMENT RECEIPT VOUCHER*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `Receipt No: *No. ${receipt.receiptNo}*\n` +
       `Date: ${formatDate(receipt.date)}\n` +
-      `Received From: ${customer?.name || receipt.customerName}\n` +
+      `Customer: *${customer?.name || receipt.customerName}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `*Amount Received: Rs. ${Number(receipt.amount).toFixed(2)}*\n` +
-      `Mode: ${receipt.paymentMode || 'Cash'} ${receipt.notes ? `(${receipt.notes})` : ''}\n` +
+      `Payment Mode: *${receipt.paymentMode || 'Cash'}* ${receipt.notes ? `(${receipt.notes})` : ''}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `*Current Balance Due: Rs. ${Number(bal.netDue).toFixed(2)}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `Thank you for your payment!`
     );
   };
@@ -404,17 +413,13 @@ export default function ReceiptScreen({
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Receipt Number
+                Receipt Number (தானாக ஏறும்)
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mt-0.5">
                 <span className="text-xs font-bold text-slate-400">No.</span>
-                <input
-                  type="text"
-                  value={nextReceiptNo}
-                  onChange={(e) => setCustomReceiptNo(e.target.value)}
-                  className="w-16 bg-emerald-50/60 border border-emerald-200 rounded px-1.5 py-0.5 font-extrabold text-emerald-600 text-sm focus:outline-none focus:bg-white"
-                  title="Edit Receipt Number"
-                />
+                <span className="font-black text-emerald-600 text-lg">
+                  {autoReceiptNo}
+                </span>
               </div>
             </div>
             <div>
@@ -503,6 +508,7 @@ export default function ReceiptScreen({
                   type="number"
                   placeholder="0.00"
                   value={amount}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full pl-8 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
                 />

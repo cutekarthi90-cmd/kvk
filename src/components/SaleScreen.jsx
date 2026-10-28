@@ -55,12 +55,12 @@ export default function SaleScreen({
     }
   }, [preselectedCustomerId]);
 
-  // Bill number starting from 1 (1, 2, 3...)
+  // Bill number starting from 1 (1, 2, 3...) - STRICTLY AUTO-INCREMENTING
   const autoInvoiceNo = useMemo(() => {
     return String(sales.length + 1);
   }, [sales.length]);
 
-  const nextInvoiceNo = customInvoiceNo || autoInvoiceNo;
+  const nextInvoiceNo = autoInvoiceNo;
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === selectedCustomerId) || null;
@@ -106,10 +106,6 @@ export default function SaleScreen({
   };
 
   const handleUpdateQty = (itemId, newQty) => {
-    if (newQty <= 0) {
-      handleRemoveItem(itemId);
-      return;
-    }
     setCart((prev) =>
       prev.map((i) => (i.id === itemId ? { ...i, qty: newQty } : i))
     );
@@ -117,9 +113,7 @@ export default function SaleScreen({
 
   const handleUpdatePrice = (itemId, newPrice) => {
     setCart((prev) =>
-      prev.map((i) =>
-        i.id === itemId ? { ...i, price: Math.max(0, Number(newPrice) || 0) } : i
-      )
+      prev.map((i) => (i.id === itemId ? { ...i, price: newPrice } : i))
     );
   };
 
@@ -128,7 +122,7 @@ export default function SaleScreen({
   };
 
   const subTotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + Number(item.qty) * Number(item.price), 0);
+    return cart.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
   }, [cart]);
 
   const grandTotal = useMemo(() => {
@@ -153,19 +147,30 @@ export default function SaleScreen({
   // Helper to construct WhatsApp / SMS text
   const getBillMessageText = (sale, customer) => {
     const itemsList = (sale.items || [])
-      .map((i) => `• ${i.name}: ${i.qty} ${i.unit || 'Nos'} @ Rs.${i.price} = Rs.${(i.qty * i.price).toFixed(2)}`)
-      .join('\n');
+      .map((i, idx) => `${idx + 1}. *${i.name}*\n   ${i.qty} Bag x Rs.${Number(i.price).toFixed(2)} = *Rs. ${(Number(i.qty) * Number(i.price)).toFixed(2)}*`)
+      .join('\n\n');
+
+    const totalAmt = Number(sale.grandTotal).toFixed(2);
+    const paidAmt = Number(sale.paidAmount || 0).toFixed(2);
+    const balDue = Math.max(0, Number(sale.grandTotal) - Number(sale.paidAmount || 0)).toFixed(2);
 
     return (
-      `*${shop.name || 'KVK THANIYA MANDI'}*\n` +
-      `Bill No: No. ${sale.invoiceNo}\n` +
+      `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+      `No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI\n` +
+      `Cell: 94866 - 68732 / 94439 - 95160\n\n` +
+      `*CASH / CREDIT BILL*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `Bill No: *No. ${sale.invoiceNo}*\n` +
       `Date: ${formatDate(sale.date)}\n` +
-      `Customer: ${customer?.name || sale.customerName}\n` +
-      `--------------------------------\n` +
+      `Customer: *${customer?.name || sale.customerName}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `${itemsList}\n` +
-      `--------------------------------\n` +
-      `*Total Amount: Rs. ${Number(sale.grandTotal).toFixed(2)}*\n` +
-      `Payment Status: ${sale.paymentStatus}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `*Grand Total: Rs. ${totalAmt}*\n` +
+      (Number(paidAmt) > 0 ? `Paid: Rs. ${paidAmt}\n` : '') +
+      (Number(balDue) > 0 ? `*Balance Due: Rs. ${balDue}*\n` : '') +
+      `Status: *${sale.paymentStatus}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
       `Thank you for your business!`
     );
   };
@@ -247,7 +252,12 @@ export default function SaleScreen({
       customerId: selectedCustomerId,
       customerName: selectedCustomer?.name,
       customerPhone: selectedCustomer?.phone,
-      items: cart,
+      items: cart.map((i) => ({
+        ...i,
+        qty: Math.max(1, Number(i.qty) || 1),
+        price: Math.max(0, Number(i.price) || 0),
+        unit: 'Bag',
+      })),
       subTotal,
       discount: Number(discount) || 0,
       grandTotal,
@@ -270,7 +280,12 @@ export default function SaleScreen({
       invoiceNo: nextInvoiceNo,
       date,
       customerId: selectedCustomerId,
-      items: cart,
+      items: cart.map((i) => ({
+        ...i,
+        qty: Math.max(1, Number(i.qty) || 1),
+        price: Math.max(0, Number(i.price) || 0),
+        unit: 'Bag',
+      })),
       subTotal,
       discount: Number(discount) || 0,
       grandTotal,
@@ -502,17 +517,13 @@ export default function SaleScreen({
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Bill Number
+                Bill Number (தானாக ஏறும்)
               </span>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 mt-0.5">
                 <span className="text-xs font-bold text-slate-400">No.</span>
-                <input
-                  type="text"
-                  value={nextInvoiceNo}
-                  onChange={(e) => setCustomInvoiceNo(e.target.value)}
-                  className="w-16 bg-blue-50/60 border border-blue-200 rounded px-1.5 py-0.5 font-extrabold text-blue-600 text-sm focus:outline-none focus:bg-white"
-                  title="Edit Bill Number"
-                />
+                <span className="font-black text-blue-600 text-lg">
+                  {autoInvoiceNo}
+                </span>
               </div>
             </div>
             <div>
@@ -702,19 +713,27 @@ export default function SaleScreen({
                         <input
                           type="number"
                           value={item.price}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
-                          className="w-14 bg-white border border-slate-200 rounded px-1 text-slate-900 font-bold"
+                          onBlur={() => {
+                            handleUpdatePrice(item.id, Math.max(0, Number(item.price) || 0));
+                          }}
+                          className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-extrabold focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <span>/ {item.unit || 'unit'}</span>
+                        <span>/ {item.unit || 'Bag'}</span>
                       </div>
                     </div>
 
-                    {/* Qty Stepper */}
+                    {/* Qty Stepper with Select-All on Focus */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleUpdateQty(item.id, item.qty - 1)}
-                        className="w-7 h-7 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100"
+                        onClick={() => {
+                          const current = Number(item.qty) || 1;
+                          if (current > 1) handleUpdateQty(item.id, current - 1);
+                          else handleRemoveItem(item.id);
+                        }}
+                        className="w-8 h-8 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100 shadow-xs"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
@@ -722,15 +741,24 @@ export default function SaleScreen({
                         type="number"
                         min="1"
                         value={item.qty}
-                        onChange={(e) =>
-                          handleUpdateQty(item.id, Math.max(1, parseInt(e.target.value) || 1))
-                        }
-                        className="w-10 text-center font-black text-xs bg-transparent focus:outline-none"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => handleUpdateQty(item.id, e.target.value)}
+                        onBlur={() => {
+                          if (!item.qty || Number(item.qty) <= 0) {
+                            handleUpdateQty(item.id, 1);
+                          } else {
+                            handleUpdateQty(item.id, parseInt(item.qty, 10));
+                          }
+                        }}
+                        className="w-14 py-1 text-center font-black text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
                       />
                       <button
                         type="button"
-                        onClick={() => handleUpdateQty(item.id, item.qty + 1)}
-                        className="w-7 h-7 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100"
+                        onClick={() => {
+                          const current = Number(item.qty) || 0;
+                          handleUpdateQty(item.id, current + 1);
+                        }}
+                        className="w-8 h-8 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-700 active:bg-slate-100 shadow-xs"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>

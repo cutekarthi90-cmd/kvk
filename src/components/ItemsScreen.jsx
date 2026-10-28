@@ -1,5 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { Package, Plus, Edit2, Trash2, Check, X, Search, TrendingUp, AlertTriangle, Layers } from 'lucide-react';
+import {
+  Package,
+  Plus,
+  Edit2,
+  Trash2,
+  Check,
+  X,
+  Search,
+  AlertTriangle,
+  Layers,
+  Sliders,
+  ArrowRight,
+  TrendingUp
+} from 'lucide-react';
 import { formatCurrency } from '../services/pdfService';
 
 export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems }) {
@@ -9,11 +22,20 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
   const [price, setPrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [initialStock, setInitialStock] = useState('0');
-  const [unit, setUnit] = useState('Bag');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
-  const commonUnits = ['Bag'];
+  // Manual Stock Adjustment Modal state
+  const [adjustingItem, setAdjustingItem] = useState(null);
+  const [adjustMode, setAdjustMode] = useState('set'); // 'set' | 'add' | 'sub'
+  const [adjustQty, setAdjustQty] = useState('');
+  const [adjustReason, setAdjustReason] = useState('Physical Stock Count');
+  const [toast, setToast] = useState('');
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  };
 
   // Stock calculations per item
   const itemStockStats = useMemo(() => {
@@ -57,7 +79,6 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
     setPrice('');
     setPurchasePrice('');
     setInitialStock('0');
-    setUnit('Bag');
     setError('');
   };
 
@@ -68,7 +89,6 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
     setPrice(String(item.price));
     setPurchasePrice(item.purchasePrice ? String(item.purchasePrice) : '');
     setInitialStock(item.initialStock !== undefined ? String(item.initialStock) : '0');
-    setUnit(item.unit || 'Kg');
     setError('');
   };
 
@@ -129,8 +149,68 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
     }
   };
 
+  // MANUAL STOCK ADJUSTMENT HANDLER
+  const handleOpenAdjust = (item) => {
+    setAdjustingItem(item);
+    const stats = itemStockStats[item.id] || { current: 0 };
+    setAdjustQty(String(stats.current));
+    setAdjustMode('set');
+    setAdjustReason('Physical Stock Count');
+  };
+
+  const handleSaveStockAdjust = (e) => {
+    e.preventDefault();
+    if (!adjustingItem) return;
+
+    const stats = itemStockStats[adjustingItem.id] || { initial: 0, purchased: 0, sold: 0, current: 0 };
+    const numQty = parseInt(adjustQty, 10);
+    if (isNaN(numQty)) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+
+    let targetCurrentStock = stats.current;
+    if (adjustMode === 'set') {
+      targetCurrentStock = Math.max(0, numQty);
+    } else if (adjustMode === 'add') {
+      targetCurrentStock = stats.current + Math.max(0, numQty);
+    } else if (adjustMode === 'sub') {
+      targetCurrentStock = Math.max(0, stats.current - Math.max(0, numQty));
+    }
+
+    // Calculate required initialStock so that initial + purchased - sold = targetCurrentStock
+    // initialStock = targetCurrentStock - purchased + sold
+    const newInitialStock = targetCurrentStock - stats.purchased + stats.sold;
+
+    const updated = items.map((i) =>
+      i.id === adjustingItem.id
+        ? {
+            ...i,
+            initialStock: newInitialStock,
+            lastStockAdjustment: {
+              date: new Date().toISOString(),
+              reason: adjustReason,
+              oldStock: stats.current,
+              newStock: targetCurrentStock,
+            },
+          }
+        : i
+    );
+
+    onSaveItems(updated);
+    showToast(`Stock updated: ${adjustingItem.name} -> ${targetCurrentStock} Bag`);
+    setAdjustingItem(null);
+  };
+
   return (
     <div className="pb-24 max-w-md mx-auto p-3 space-y-3">
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2 rounded-full shadow-lg font-bold">
+          {toast}
+        </div>
+      )}
+
       {/* Top Banner */}
       <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -138,9 +218,9 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
             <Package className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-bold text-slate-900 text-sm">Stock & Price Master</h2>
+            <h2 className="font-bold text-slate-900 text-sm">Stock & Items Master</h2>
             <p className="text-xs text-slate-500">
-              {items.length} items • Live inventory tracking
+              {items.length} items • Standard 50kg Bags
             </p>
           </div>
         </div>
@@ -161,7 +241,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
         <input
           type="text"
-          placeholder="Search items or grains..."
+          placeholder="Search items..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
@@ -199,7 +279,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
             </label>
             <input
               type="text"
-              placeholder="e.g. Ponni Boiled Rice 25kg"
+              placeholder="e.g. Ponni Boiled Rice (50kg)"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -210,12 +290,13 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                Selling Price (₹) *
+                Selling Price (₹ per Bag) *
               </label>
               <input
                 type="number"
                 placeholder="0.00"
                 value={price}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setPrice(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -240,10 +321,11 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                 type="number"
                 placeholder="0"
                 value={initialStock}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setInitialStock(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-[10px] text-slate-400">Starting quantity</span>
+              <span className="text-[10px] text-slate-400">Total Bags</span>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
@@ -253,10 +335,11 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                 type="number"
                 placeholder="Optional"
                 value={purchasePrice}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setPurchasePrice(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span className="text-[10px] text-slate-400">Default purchase rate</span>
+              <span className="text-[10px] text-slate-400">Per Bag rate</span>
             </div>
           </div>
 
@@ -304,14 +387,9 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                       <span className="text-xs font-extrabold text-blue-600">
                         ₹{Number(item.price).toFixed(2)}
                       </span>
-                      <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-medium">
-                        per {item.unit || 'Kg'}
+                      <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
+                        per Bag (50kg)
                       </span>
-                      {item.purchasePrice > 0 && (
-                        <span className="text-[10px] text-slate-400">
-                          (Cost: ₹{item.purchasePrice})
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -321,7 +399,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                     type="button"
                     onClick={() => handleStartEdit(item)}
                     className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                    title="Edit Item & Stock"
+                    title="Edit Item Details"
                   >
                     <Edit2 className="w-4 h-4" />
                   </button>
@@ -336,12 +414,12 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                 </div>
               </div>
 
-              {/* Stock Status Bar */}
+              {/* Stock Status Bar + Manual Adjustment Button */}
               <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[11px] text-slate-500 font-medium">Stock:</span>
                   <span
-                    className={`px-2 py-0.5 rounded-md font-bold text-xs flex items-center gap-1 ${
+                    className={`px-2 py-0.5 rounded-md font-extrabold text-xs flex items-center gap-1 ${
                       isOut
                         ? 'bg-red-100 text-red-700'
                         : isLow
@@ -354,12 +432,25 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                     ) : (
                       <Layers className="w-3 h-3" />
                     )}
-                    {stats.current} {item.unit || 'Kg'}
+                    {stats.current} Bag
                   </span>
                 </div>
 
-                <div className="text-[10px] text-slate-400 font-medium">
-                  In: {stats.initial + stats.purchased} | Out: {stats.sold}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
+                    In: {stats.initial + stats.purchased} | Out: {stats.sold}
+                  </span>
+
+                  {/* Manual Stock Adjustment Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAdjust(item)}
+                    className="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg text-[11px] flex items-center gap-1 border border-blue-200 transition-colors active:scale-95"
+                    title="Manual Stock Adjustment"
+                  >
+                    <Sliders className="w-3 h-3" />
+                    <span>Adjust Stock</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -373,6 +464,139 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
           </div>
         )}
       </div>
+
+      {/* MANUAL STOCK ADJUSTMENT MODAL */}
+      {adjustingItem && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <form
+            onSubmit={handleSaveStockAdjust}
+            className="bg-white rounded-2xl max-w-sm w-full p-4 space-y-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200"
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-blue-600" />
+                <h3 className="font-extrabold text-slate-900 text-sm">
+                  Manual Stock Adjustment
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdjustingItem(null)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
+              <div className="text-xs text-slate-500">Item:</div>
+              <div className="font-black text-slate-900 text-sm mt-0.5">
+                {adjustingItem.name}
+              </div>
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200 text-xs">
+                <span className="text-slate-500">Current Stock:</span>
+                <span className="font-black text-blue-600">
+                  {itemStockStats[adjustingItem.id]?.current || 0} Bag (50kg)
+                </span>
+              </div>
+            </div>
+
+            {/* Adjustment Mode Selector */}
+            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setAdjustMode('set')}
+                className={`py-1.5 rounded-lg transition-all ${
+                  adjustMode === 'set'
+                    ? 'bg-white text-blue-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Set Exact Total
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjustMode('add')}
+                className={`py-1.5 rounded-lg transition-all ${
+                  adjustMode === 'add'
+                    ? 'bg-white text-emerald-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                + Add Bags
+              </button>
+              <button
+                type="button"
+                onClick={() => setAdjustMode('sub')}
+                className={`py-1.5 rounded-lg transition-all ${
+                  adjustMode === 'sub'
+                    ? 'bg-white text-red-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                - Reduce Bags
+              </button>
+            </div>
+
+            {/* Qty Input */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                {adjustMode === 'set'
+                  ? 'New Exact Stock in Mandi (Bags)'
+                  : adjustMode === 'add'
+                  ? 'Quantity to Add (Bags)'
+                  : 'Quantity to Deduct / Damage (Bags)'}
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  value={adjustQty}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => setAdjustQty(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white"
+                  autoFocus
+                  required
+                />
+                <span className="absolute right-3 top-3 text-xs font-bold text-slate-400">
+                  Bags
+                </span>
+              </div>
+            </div>
+
+            {/* Reason */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Reason (காரணம்)
+              </label>
+              <input
+                type="text"
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                placeholder="e.g. Physical count / Damaged bags"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setAdjustingItem(null)}
+                className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-md flex items-center justify-center gap-1.5"
+              >
+                <Check className="w-4 h-4" />
+                <span>Save Stock</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,8 +1,7 @@
-import { Share } from '@capacitor/share';
-import { Filesystem, Directory } from '@capacitor/filesystem';
+// Direct WhatsApp & SMS Sharing Service for KVK THANIYA MANDI
 import { Capacitor } from '@capacitor/core';
 
-// Format phone number for WhatsApp: ensure 91 country code for Indian numbers if not already present
+// Format phone number for WhatsApp: ensure 91 country code for Indian numbers
 export const formatWhatsAppPhone = (phone) => {
   if (!phone) return '';
   const cleaned = phone.replace(/[^0-9]/g, '');
@@ -13,11 +12,10 @@ export const formatWhatsAppPhone = (phone) => {
 };
 
 /**
- * Universal PDF WhatsApp Sharing:
- * Supports:
- * 1. Capacitor Native Android (Writes to cache -> Shares via Android Intent to WhatsApp)
- * 2. Web Share API (Mobile Chrome / Safari native share sheet)
- * 3. Fallback (Direct PDF download + Opens WhatsApp Web/App chat)
+ * DIRECT WHATSAPP SHARING:
+ * Directly opens WhatsApp chat for that specific customer number with the bill text!
+ * No annoying Android "Share 1 file" system picker sheet!
+ * Automatically saves the PDF invoice in the background.
  */
 export const sharePdfToWhatsApp = async ({
   doc,
@@ -26,78 +24,46 @@ export const sharePdfToWhatsApp = async ({
   customerName = '',
   messageText = '',
 }) => {
-  const isNative = Capacitor.isNativePlatform();
-  const pdfBlob = doc.output('blob');
   const targetPhone = formatWhatsAppPhone(phone);
   const encodedText = encodeURIComponent(messageText);
 
-  // 1. CAPACITOR NATIVE ANDROID
-  if (isNative) {
-    try {
-      const base64Data = await blobToBase64(pdfBlob);
-      const saved = await Filesystem.writeFile({
-        path: fileName,
-        data: base64Data,
-        directory: Directory.Cache,
-      });
-
-      await Share.share({
-        title: fileName,
-        text: messageText,
-        url: saved.uri,
-        dialogTitle: 'Share PDF via WhatsApp',
-      });
-
-      return { success: true, mode: 'capacitor_native' };
-    } catch (e) {
-      console.warn('Capacitor native share failed, falling back:', e);
+  // 1. Always download/save the PDF in the background
+  try {
+    if (doc) {
+      doc.save(fileName);
     }
+  } catch (err) {
+    console.warn('PDF download error:', err);
   }
 
-  // 2. MOBILE BROWSER WEB SHARE API (Supports file attachment directly!)
-  const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-  if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-    try {
-      await navigator.share({
-        files: [pdfFile],
-        title: fileName,
-        text: messageText,
-      });
-      return { success: true, mode: 'web_share_file' };
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.warn('Web Share failed, using download fallback:', err);
-      } else {
-        return { success: true, mode: 'cancelled_by_user' };
-      }
-    }
-  }
-
-  // 3. FALLBACK: DOWNLOAD PDF + OPEN WHATSAPP CHAT
-  doc.save(fileName);
-
+  // 2. Direct WhatsApp to Customer Mobile Number!
   if (targetPhone) {
-    const whatsappUrl = `https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedText}`;
-    window.open(whatsappUrl, '_blank');
+    // Uses direct WhatsApp API link which triggers WhatsApp app directly to that customer
+    const whatsappUrl = `https://wa.me/${targetPhone}?text=${encodedText}`;
+    
+    // In mobile browsers and PWAs, window.location.href triggers native app opening instantly
+    window.location.href = whatsappUrl;
+
+    return {
+      success: true,
+      mode: 'direct_whatsapp',
+      info: 'Opening WhatsApp directly to customer...',
+    };
   }
 
   return {
-    success: true,
-    mode: 'download_and_whatsapp_chat',
-    info: 'PDF downloaded! WhatsApp chat opened to attach the file.',
+    success: false,
+    info: 'Customer phone number is missing',
   };
 };
 
-const blobToBase64 = (blob) => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = reject;
-    reader.onload = () => {
-      const result = reader.result;
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.readAsDataURL(blob);
-  });
+/**
+ * Direct SMS sending via phone's native Messages app
+ */
+export const sendDirectSMS = (phone, messageText) => {
+  if (!phone) return false;
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const encoded = encodeURIComponent(messageText);
+  window.location.href = `sms:${cleanPhone}?body=${encoded}`;
+  return true;
 };

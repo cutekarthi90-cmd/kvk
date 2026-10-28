@@ -80,16 +80,17 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
   drawShopHeader(doc, shop, 'CASH / CREDIT BILL', [22, 101, 192]);
 
   // --- Customer & Invoice Info ---
-  doc.setTextColor(30, 41, 59);
   const startMetaY = 48;
 
   // Left: Messers / Customer Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.4);
   doc.roundedRect(14, startMetaY, 105, 26, 1.5, 1.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
+  doc.setTextColor(71, 85, 105);
   doc.text('Messers / Customer:', 18, startMetaY + 6);
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
@@ -103,25 +104,29 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
     doc.text(customer.address, 18, startMetaY + 22, { maxWidth: 95 });
   }
 
-  // Right: Bill Details Box
+  // Right: Bill Details Box (Crisp White Background, Clean Border, No Black Shadow)
   const rightX = pageWidth - 14;
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(203, 213, 225);
+  doc.setLineWidth(0.4);
   doc.roundedRect(pageWidth - 72, startMetaY, 58, 26, 1.5, 1.5, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.setTextColor(30, 41, 59);
-
+  doc.setTextColor(71, 85, 105);
   doc.text('Bill No:', pageWidth - 68, startMetaY + 7);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(22, 101, 192);
   doc.text(`No. ${sale.invoiceNo || '1'}`, rightX - 4, startMetaY + 7, { align: 'right' });
 
-  doc.setTextColor(30, 41, 59);
+  doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');
   doc.text('Date:', pageWidth - 68, startMetaY + 14);
   doc.setFont('helvetica', 'normal');
+  doc.setTextColor(30, 41, 59);
   doc.text(formatDate(sale.date), rightX - 4, startMetaY + 14, { align: 'right' });
 
+  doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');
   doc.text('Status:', pageWidth - 68, startMetaY + 21);
   const statusColor = sale.paymentStatus === 'PAID' ? [16, 185, 129] : [220, 38, 38];
