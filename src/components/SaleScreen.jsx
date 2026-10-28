@@ -19,7 +19,7 @@ import {
   Package
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
-import { sharePdfToWhatsApp, formatWhatsAppPhone } from '../services/shareService';
+import { sharePdfToWhatsApp, sharePdfAsFile, formatWhatsAppPhone } from '../services/shareService';
 import { Storage } from '../services/storage';
 
 export default function SaleScreen({
@@ -236,6 +236,21 @@ export default function SaleScreen({
     }
   };
 
+  const handleSharePdfFile = async (saleToShare) => {
+    const customer = customers.find((c) => c.id === saleToShare.customerId) || {
+      name: saleToShare.customerName,
+      phone: saleToShare.customerPhone,
+    };
+    try {
+      const doc = generateSaleInvoicePDF(saleToShare, customer, shop);
+      const fileName = `${shop.name || 'Bill'}_No_${saleToShare.invoiceNo}.pdf`.replace(/\s+/g, '_');
+      const msg = getBillMessageText(saleToShare, customer);
+      await sharePdfAsFile({ doc, fileName, messageText: msg });
+    } catch (err) {
+      console.warn('Share error:', err);
+    }
+  };
+
   // SINGLE SAVE BUTTON HANDLER: Saves, opens WhatsApp, and shows SMS button!
   const handleSingleSaveAndSend = async () => {
     if (!selectedCustomerId) {
@@ -368,13 +383,22 @@ export default function SaleScreen({
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2"
               >
                 <Share2 className="w-4 h-4" />
-                <span>Send on WhatsApp (PDF)</span>
+                <span>1-Tap WhatsApp Chat (Bill Text)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSharePdfFile(lastSavedBill)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-slate-300"
+              >
+                <FileText className="w-4 h-4 text-red-500" />
+                <span>Share PDF File as Attachment</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleShareSMS(lastSavedBill)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-2"
+                className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-blue-200"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>Send via Normal SMS Message</span>

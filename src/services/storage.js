@@ -7,6 +7,8 @@ const STORAGE_KEYS = {
   SALES: 'quickbill_sales',
   RECEIPTS: 'quickbill_receipts',
   PURCHASES: 'quickbill_purchases',
+  SUPPLIERS: 'quickbill_suppliers',
+  SUPPLIER_PAYMENTS: 'quickbill_supplier_payments',
 };
 
 const DEFAULT_SHOP = {
@@ -156,6 +158,79 @@ export const Storage = {
   },
   savePurchases: (purchases) => {
     localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
+  },
+
+  getSuppliers: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
+      if (data) return JSON.parse(data);
+      // Auto-extract from existing purchases if any
+      const purchases = Storage.getPurchases();
+      const map = {};
+      purchases.forEach((p) => {
+        if (p.supplierName && !map[p.supplierName.trim()]) {
+          map[p.supplierName.trim()] = {
+            id: `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            name: p.supplierName.trim(),
+            phone: p.supplierPhone || '',
+          };
+        }
+      });
+      const extracted = Object.values(map);
+      if (extracted.length > 0) {
+        Storage.saveSuppliers(extracted);
+        return extracted;
+      }
+      return [
+        { id: 'sup-1', name: 'Raju Agro Pollachi', phone: '9842112345' },
+        { id: 'sup-2', name: 'Murugan Grains Kangayam', phone: '9443354321' },
+      ];
+    } catch {
+      return [];
+    }
+  },
+  saveSuppliers: (suppliers) => {
+    localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers));
+  },
+
+  getSupplierPayments: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SUPPLIER_PAYMENTS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  saveSupplierPayments: (payments) => {
+    localStorage.setItem(STORAGE_KEYS.SUPPLIER_PAYMENTS, JSON.stringify(payments));
+  },
+
+  // Calculate supplier balance: Total Purchases - Immediate Paid - Later Supplier Payments
+  getSupplierBalance: (supplierName) => {
+    if (!supplierName) return { totalPurchases: 0, totalPaid: 0, netDue: 0 };
+    const sName = supplierName.trim().toLowerCase();
+    const purchases = Storage.getPurchases().filter(
+      (p) => (p.supplierName || '').trim().toLowerCase() === sName
+    );
+    const payments = Storage.getSupplierPayments().filter(
+      (p) => (p.supplierName || '').trim().toLowerCase() === sName
+    );
+
+    const totalPurchases = purchases.reduce((sum, p) => sum + (Number(p.grandTotal) || 0), 0);
+    const immediatePaid = purchases.reduce(
+      (sum, p) => sum + (p.paymentStatus === 'PAID' ? Number(p.grandTotal) || 0 : 0),
+      0
+    );
+    const laterPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+
+    const totalPaid = immediatePaid + laterPaid;
+    const netDue = Math.max(0, totalPurchases - totalPaid);
+
+    return {
+      totalPurchases,
+      totalPaid,
+      netDue,
+    };
   },
 
   // Calculate live item stock: Initial Stock + Total Purchased - Total Sold

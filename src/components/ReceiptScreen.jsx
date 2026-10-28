@@ -12,37 +12,51 @@ import {
   Banknote,
   Trash2,
   MessageSquare,
-  Search
+  Search,
+  Truck,
+  FileText
 } from 'lucide-react';
 import { generateReceiptPDF, formatCurrency, formatDate } from '../services/pdfService';
-import { sharePdfToWhatsApp } from '../services/shareService';
+import { sharePdfToWhatsApp, sharePdfAsFile, sendDirectSMS } from '../services/shareService';
 import { Storage } from '../services/storage';
 
 export default function ReceiptScreen({
-  customers,
-  receipts,
-  shop,
+  customers = [],
+  receipts = [],
+  shop = {},
   onSaveReceipt,
   onDeleteReceipt,
   onOpenAddCustomer,
   preselectedCustomerId = '',
 }) {
+  // Voucher Entry Type: 'customer' (வரவு) | 'supplier' (பற்று / கொள்முதல் பட்டுவாடா)
+  const [entryType, setEntryType] = useState('customer');
+
+  // Customer Receipt states
   const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomerId || '');
+  const [customerSearch, setCustomerSearch] = useState('');
+
+  // Supplier Payment states
+  const [savedSuppliers, setSavedSuppliers] = useState(() => Storage.getSuppliers());
+  const [selectedSupplierName, setSelectedSupplierName] = useState('');
+  const [supplierPhone, setSupplierPhone] = useState('');
+  const [supplierPayments, setSupplierPayments] = useState(() => Storage.getSupplierPayments());
+
+  // Shared Form states
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [notes, setNotes] = useState('');
-  const [activeView, setActiveView] = useState('create');
+  const [activeView, setActiveView] = useState('create'); // 'create' | 'history'
   const [historySearch, setHistorySearch] = useState('');
-  const [customerSearch, setCustomerSearch] = useState('');
   const [sharing, setSharing] = useState(false);
   const [toast, setToast] = useState('');
-  const [customReceiptNo, setCustomReceiptNo] = useState('');
-  const [lastSavedReceipt, setLastSavedReceipt] = useState(null);
+  const [lastSavedVoucher, setLastSavedVoucher] = useState(null);
 
   useEffect(() => {
     if (preselectedCustomerId) {
       setSelectedCustomerId(preselectedCustomerId);
+      setEntryType('customer');
       setActiveView('create');
     }
   }, [preselectedCustomerId]);
@@ -51,13 +65,17 @@ export default function ReceiptScreen({
     return String(receipts.length + 1);
   }, [receipts.length]);
 
-  const nextReceiptNo = autoReceiptNo;
+  const autoSupplierVoucherNo = useMemo(() => {
+    return String(supplierPayments.length + 1);
+  }, [supplierPayments.length]);
+
+  const voucherNo = entryType === 'customer' ? autoReceiptNo : autoSupplierVoucherNo;
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return customers;
     const q = customerSearch.toLowerCase();
     return customers.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+      (c) => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q))
     );
   }, [customers, customerSearch]);
 
@@ -70,25 +88,10 @@ export default function ReceiptScreen({
     return Storage.getCustomerBalance(selectedCustomerId);
   }, [selectedCustomerId, receipts]);
 
-  const filteredReceipts = useMemo(() => {
-    if (!historySearch.trim()) return receipts;
-    const q = historySearch.toLowerCase();
-    return receipts.filter(
-      (r) =>
-        String(r.receiptNo).toLowerCase().includes(q) ||
-        (r.customerName && r.customerName.toLowerCase().includes(q)) ||
-        (r.customerPhone && r.customerPhone.includes(q))
-    );
-  }, [receipts, historySearch]);
-
-  const sortedReceiptsHistory = useMemo(() => {
-    return [...filteredReceipts].sort((a, b) => {
-      const numA = parseInt(String(a.receiptNo).replace(/[^0-9]/g, ''), 10) || 0;
-      const numB = parseInt(String(b.receiptNo).replace(/[^0-9]/g, ''), 10) || 0;
-      if (numB !== numA) return numB - numA;
-      return new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt);
-    });
-  }, [filteredReceipts]);
+  const supplierBalance = useMemo(() => {
+    if (!selectedSupplierName) return { totalPurchases: 0, totalPaid: 0, netDue: 0 };
+    return Storage.getSupplierBalance(selectedSupplierName);
+  }, [selectedSupplierName, supplierPayments]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -97,19 +100,21 @@ export default function ReceiptScreen({
 
   const resetForm = () => {
     setSelectedCustomerId('');
-    setCustomReceiptNo('');
+    setSelectedSupplierName('');
+    setSupplierPhone('');
     setAmount('');
     setNotes('');
     setDate(new Date().toISOString().split('T')[0]);
   };
 
-  const getReceiptMessageText = (receipt, customer) => {
+  // Text generator for Customer Receipt
+  const getCustomerReceiptText = (receipt, customer) => {
     const bal = Storage.getCustomerBalance(customer?.id || receipt.customerId);
     return (
       `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
       `No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI\n` +
       `Cell: 94866 - 68732 / 94439 - 95160\n\n` +
-      `*PAYMENT RECEIPT VOUCHER*\n` +
+      `*PAYMENT RECEIPT VOUCHER (வரவு)*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `Receipt No: *No. ${receipt.receiptNo}*\n` +
       `Date: ${formatDate(receipt.date)}\n` +
@@ -124,128 +129,212 @@ export default function ReceiptScreen({
     );
   };
 
-  const handleShareSMS = (rec) => {
-    const customer = customers.find((c) => c.id === rec.customerId) || {
-      name: rec.customerName,
-      phone: rec.customerPhone,
-    };
-    if (!customer?.phone) {
-      showToast('No customer phone number!');
-      return;
-    }
-    const cleanPhone = customer.phone.replace(/[^0-9]/g, '');
-    const msg = getReceiptMessageText(rec, customer);
-    window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
+  // Text generator for Supplier Payment
+  const getSupplierPaymentText = (payment, remainingDue) => {
+    return (
+      `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+      `No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI\n` +
+      `Cell: 94866 - 68732 / 94439 - 95160\n\n` +
+      `*SUPPLIER PAYMENT VOUCHER (பட்டுவாடா)*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `Voucher No: *#${payment.voucherNo}*\n` +
+      `Date: ${formatDate(payment.date)}\n` +
+      `Paid To Supplier: *${payment.supplierName}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `*Amount Paid: Rs. ${Number(payment.amount).toFixed(2)}*\n` +
+      `Payment Mode: *${payment.paymentMode || 'Cash'}* ${payment.notes ? `(${payment.notes})` : ''}\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `*Remaining Balance to Pay: Rs. ${Number(remainingDue).toFixed(2)}*\n` +
+      `━━━━━━━━━━━━━━━━━━\n` +
+      `Thank you!`
+    );
   };
 
-  const handleShareWhatsApp = async (recToShare) => {
-    const customer = customers.find((c) => c.id === recToShare.customerId) || {
-      name: recToShare.customerName,
-      phone: recToShare.customerPhone,
-    };
-
-    if (!customer.phone) {
-      showToast('Customer does not have a phone number!');
+  // SHARE TO WHATSAPP (Direct 1-Tap)
+  const handleShareWhatsApp = async (voucher) => {
+    const isCust = voucher.type !== 'supplier';
+    const phone = isCust ? voucher.customerPhone : voucher.supplierPhone;
+    if (!phone) {
+      showToast('Phone number is missing!');
       return;
     }
 
     setSharing(true);
     try {
-      const prevBal = customerBalance.netDue;
-      const doc = generateReceiptPDF(recToShare, customer, shop, prevBal);
-      const fileName = `${shop.name || 'Receipt'}_No_${recToShare.receiptNo}.pdf`.replace(/\s+/g, '_');
-      const whatsappMsg = getReceiptMessageText(recToShare, customer);
+      if (isCust) {
+        const customer = customers.find((c) => c.id === voucher.customerId) || {
+          name: voucher.customerName,
+          phone: voucher.customerPhone,
+        };
+        const prevBal = customerBalance.netDue;
+        const doc = generateReceiptPDF(voucher, customer, shop, prevBal);
+        const fileName = `${shop.name || 'Receipt'}_No_${voucher.receiptNo}.pdf`.replace(/\s+/g, '_');
+        const whatsappMsg = getCustomerReceiptText(voucher, customer);
 
-      await sharePdfToWhatsApp({
-        doc,
-        fileName,
-        phone: customer.phone,
-        customerName: customer.name,
-        messageText: whatsappMsg,
-      });
-
-      showToast('Receipt PDF shared to WhatsApp!');
+        await sharePdfToWhatsApp({
+          doc,
+          fileName,
+          phone: customer.phone,
+          customerName: customer.name,
+          messageText: whatsappMsg,
+        });
+      } else {
+        const remainingDue = Math.max(0, supplierBalance.netDue - Number(voucher.amount));
+        const whatsappMsg = getSupplierPaymentText(voucher, remainingDue);
+        const cleanPhone = phone.replace(/[^0-9]/g, '');
+        const targetPhone = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
+        window.location.href = `https://wa.me/${targetPhone}?text=${encodeURIComponent(whatsappMsg)}`;
+      }
+      showToast('Opening WhatsApp...');
     } catch (e) {
       console.error(e);
-      showToast('Failed to generate PDF');
+      showToast('Failed to open WhatsApp');
     } finally {
       setSharing(false);
     }
   };
 
-  // Single Save Button Handler: Saves and auto-triggers WhatsApp
-  const handleSingleSaveAndSend = async () => {
-    if (!selectedCustomerId) {
-      showToast('Please select a Customer!');
+  // SHARE PDF AS FILE ATTACHMENT
+  const handleSharePdfAttachment = async (voucher) => {
+    if (voucher.type === 'supplier') {
+      handleShareWhatsApp(voucher);
       return;
     }
+    const customer = customers.find((c) => c.id === voucher.customerId) || {
+      name: voucher.customerName,
+      phone: voucher.customerPhone,
+    };
+    const prevBal = customerBalance.netDue;
+    const doc = generateReceiptPDF(voucher, customer, shop, prevBal);
+    const fileName = `${shop.name || 'Receipt'}_No_${voucher.receiptNo}.pdf`.replace(/\s+/g, '_');
+    const whatsappMsg = getCustomerReceiptText(voucher, customer);
+    await sharePdfAsFile({ doc, fileName, messageText: whatsappMsg });
+  };
+
+  // SHARE SMS
+  const handleShareSMS = (voucher) => {
+    const isCust = voucher.type !== 'supplier';
+    const phone = isCust ? voucher.customerPhone : voucher.supplierPhone;
+    if (!phone) {
+      showToast('No phone number!');
+      return;
+    }
+
+    if (isCust) {
+      const customer = customers.find((c) => c.id === voucher.customerId) || {
+        name: voucher.customerName,
+        phone: voucher.customerPhone,
+      };
+      const msg = getCustomerReceiptText(voucher, customer);
+      sendDirectSMS(phone, msg);
+    } else {
+      const remainingDue = Math.max(0, supplierBalance.netDue - Number(voucher.amount));
+      const msg = getSupplierPaymentText(voucher, remainingDue);
+      sendDirectSMS(phone, msg);
+    }
+  };
+
+  // SINGLE SAVE BUTTON HANDLER
+  const handleSingleSaveAndSend = async () => {
     const numAmount = Number(amount);
     if (!numAmount || numAmount <= 0) {
       showToast('Please enter a valid amount!');
       return;
     }
 
-    const newReceipt = {
-      id: `rec-${Date.now()}`,
-      receiptNo: nextReceiptNo,
-      date,
-      createdAt: new Date().toISOString(),
-      customerId: selectedCustomerId,
-      customerName: selectedCustomer?.name,
-      customerPhone: selectedCustomer?.phone,
-      amount: numAmount,
-      paymentMode,
-      notes: notes.trim(),
-    };
-
-    onSaveReceipt(newReceipt);
-    setLastSavedReceipt(newReceipt);
-    showToast(`Receipt No. ${newReceipt.receiptNo} saved!`);
-
-    await handleShareWhatsApp(newReceipt);
-    resetForm();
-  };
-
-  const handlePreviewPdf = (recToPreview) => {
-    const receipt = recToPreview || {
-      receiptNo: nextReceiptNo,
-      date,
-      customerId: selectedCustomerId,
-      amount: Number(amount) || 0,
-      paymentMode,
-      notes,
-    };
-
-    if (!receipt.amount) {
-      showToast('Enter amount to preview receipt');
-      return;
-    }
-
-    const customer = customers.find((c) => c.id === receipt.customerId) || {
-      name: 'Preview Customer',
-      phone: '9840123456',
-    };
-
-    const doc = generateReceiptPDF(receipt, customer, shop, customerBalance.netDue);
-    const pdfBlob = doc.output('blob');
-    const blobUrl = URL.createObjectURL(pdfBlob);
-    window.open(blobUrl, '_blank');
-  };
-
-  const handleDeleteReceiptItem = (rec) => {
-    if (
-      confirm(
-        `Are you sure you want to delete Receipt No. ${rec.receiptNo} of ${formatCurrency(
-          rec.amount
-        )}? This will restore the customer balance.`
-      )
-    ) {
-      if (onDeleteReceipt) {
-        onDeleteReceipt(rec.id);
-        showToast(`Receipt No. ${rec.receiptNo} deleted!`);
+    if (entryType === 'customer') {
+      if (!selectedCustomerId) {
+        showToast('Please select a Customer!');
+        return;
       }
+      const newReceipt = {
+        id: `rec-${Date.now()}`,
+        type: 'customer',
+        receiptNo: autoReceiptNo,
+        date,
+        createdAt: new Date().toISOString(),
+        customerId: selectedCustomerId,
+        customerName: selectedCustomer?.name,
+        customerPhone: selectedCustomer?.phone,
+        amount: numAmount,
+        paymentMode,
+        notes: notes.trim(),
+      };
+
+      onSaveReceipt(newReceipt);
+      setLastSavedVoucher(newReceipt);
+      showToast(`Receipt No. ${newReceipt.receiptNo} saved!`);
+      await handleShareWhatsApp(newReceipt);
+      resetForm();
+    } else {
+      // Supplier Payment
+      if (!selectedSupplierName.trim()) {
+        showToast('Please select or enter Supplier Name!');
+        return;
+      }
+      const newPayment = {
+        id: `suppay-${Date.now()}`,
+        type: 'supplier',
+        voucherNo: autoSupplierVoucherNo,
+        date,
+        createdAt: new Date().toISOString(),
+        supplierName: selectedSupplierName.trim(),
+        supplierPhone: supplierPhone.trim(),
+        amount: numAmount,
+        paymentMode,
+        notes: notes.trim(),
+      };
+
+      const updatedPayments = [newPayment, ...supplierPayments];
+      setSupplierPayments(updatedPayments);
+      Storage.saveSupplierPayments(updatedPayments);
+
+      // Auto-save supplier to master if not existing
+      const existing = savedSuppliers.find(
+        (s) => s.name.toLowerCase() === selectedSupplierName.trim().toLowerCase()
+      );
+      if (!existing) {
+        const newSup = {
+          id: `sup-${Date.now()}`,
+          name: selectedSupplierName.trim(),
+          phone: supplierPhone.trim(),
+        };
+        const updatedSups = [newSup, ...savedSuppliers];
+        setSavedSuppliers(updatedSups);
+        Storage.saveSuppliers(updatedSups);
+      }
+
+      setLastSavedVoucher(newPayment);
+      showToast(`Supplier Payment #${newPayment.voucherNo} saved!`);
+      await handleShareWhatsApp(newPayment);
+      resetForm();
     }
   };
+
+  // Combined Vouchers History in STRICT DESCENDING ORDER
+  const sortedVouchersHistory = useMemo(() => {
+    const list = [
+      ...receipts.map((r) => ({ ...r, type: 'customer' })),
+      ...supplierPayments.map((p) => ({ ...p, type: 'supplier' })),
+    ];
+
+    const filtered = list.filter((v) => {
+      if (!historySearch.trim()) return true;
+      const q = historySearch.toLowerCase();
+      const name = v.customerName || v.supplierName || '';
+      const phone = v.customerPhone || v.supplierPhone || '';
+      const no = v.receiptNo || v.voucherNo || '';
+      return (
+        name.toLowerCase().includes(q) ||
+        phone.includes(q) ||
+        String(no).toLowerCase().includes(q)
+      );
+    });
+
+    return filtered.sort((a, b) => {
+      return new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt);
+    });
+  }, [receipts, supplierPayments, historySearch]);
 
   return (
     <div className="pb-24 max-w-md mx-auto">
@@ -257,9 +346,9 @@ export default function ReceiptScreen({
         </div>
       )}
 
-      {/* POST-SAVE MODAL */}
-      {lastSavedReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+      {/* POST-SAVE DIALOG */}
+      {lastSavedVoucher && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 text-center">
             <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 mx-auto flex items-center justify-center">
               <CheckCircle className="w-7 h-7" />
@@ -267,45 +356,59 @@ export default function ReceiptScreen({
 
             <div>
               <h3 className="font-black text-slate-900 text-lg">
-                Receipt No. {lastSavedReceipt.receiptNo} Saved!
+                {lastSavedVoucher.type === 'supplier'
+                  ? `Payment #${lastSavedVoucher.voucherNo} Saved!`
+                  : `Receipt No. ${lastSavedVoucher.receiptNo} Saved!`}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                {lastSavedReceipt.customerName} • {formatCurrency(lastSavedReceipt.amount)}
+                {lastSavedVoucher.customerName || lastSavedVoucher.supplierName} •{' '}
+                {formatCurrency(lastSavedVoucher.amount)}
               </p>
             </div>
 
             <div className="space-y-2 pt-1">
               <button
                 type="button"
-                onClick={() => handleShareWhatsApp(lastSavedReceipt)}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2"
+                onClick={() => handleShareWhatsApp(lastSavedVoucher)}
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 active:scale-95 transition-transform"
               >
                 <Share2 className="w-4 h-4" />
-                <span>Send on WhatsApp (PDF)</span>
+                <span>1-Tap WhatsApp Chat (Direct)</span>
               </button>
+
+              {lastSavedVoucher.type !== 'supplier' && (
+                <button
+                  type="button"
+                  onClick={() => handleSharePdfAttachment(lastSavedVoucher)}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-slate-300"
+                >
+                  <FileText className="w-4 h-4 text-red-500" />
+                  <span>Share PDF File as Attachment</span>
+                </button>
+              )}
 
               <button
                 type="button"
-                onClick={() => handleShareSMS(lastSavedReceipt)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-2"
+                onClick={() => handleShareSMS(lastSavedVoucher)}
+                className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl font-bold text-xs flex items-center justify-center gap-2"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Send via Normal SMS Message</span>
+                <span>Send Normal SMS Message</span>
               </button>
             </div>
 
             <button
               type="button"
-              onClick={() => setLastSavedReceipt(null)}
+              onClick={() => setLastSavedVoucher(null)}
               className="w-full py-2 text-slate-500 hover:text-slate-800 font-semibold text-xs pt-1"
             >
-              Done / Next Receipt
+              Done / Create Next Voucher
             </button>
           </div>
         </div>
       )}
 
-      {/* Switcher: New Receipt vs History */}
+      {/* Main Switcher: Create Voucher vs History */}
       <div className="p-3 bg-white border-b border-slate-200 flex gap-2">
         <button
           onClick={() => setActiveView('create')}
@@ -315,7 +418,7 @@ export default function ReceiptScreen({
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          + New Payment Receipt
+          + New Voucher (ரசீது / பற்று)
         </button>
         <button
           onClick={() => setActiveView('history')}
@@ -326,123 +429,169 @@ export default function ReceiptScreen({
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          Past Receipts ({receipts.length})
+          Past Vouchers ({receipts.length + supplierPayments.length})
         </button>
       </div>
 
       {activeView === 'history' ? (
-        /* PAST RECEIPTS LIST WITH 1-TAP RESEND */
+        /* PAST VOUCHERS LIST (DESCENDING ORDER) */
         <div className="p-3.5 space-y-3">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Past Receipts ({receipts.length}) - Tap to Resend
+            Past Receipts & Payments - Tap to Resend
           </div>
 
           <div className="relative">
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <input
               type="text"
-              placeholder="Search receipts by No. or Customer..."
+              placeholder="Search by customer, supplier, or No..."
               value={historySearch}
               onChange={(e) => setHistorySearch(e.target.value)}
               className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
             />
           </div>
 
-          {sortedReceiptsHistory.length === 0 ? (
+          {sortedVouchersHistory.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
               No payment receipts recorded yet.
             </div>
           ) : (
-            sortedReceiptsHistory.map((rec) => (
-              <div
-                key={rec.id}
-                className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-black text-slate-900 text-base">
-                        No. {rec.receiptNo}
-                      </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-emerald-100 text-emerald-800">
-                        {rec.paymentMode}
-                      </span>
+            sortedVouchersHistory.map((rec) => {
+              const isCust = rec.type !== 'supplier';
+              return (
+                <div
+                  key={rec.id}
+                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 text-base">
+                          {isCust ? `No. ${rec.receiptNo}` : `#${rec.voucherNo}`}
+                        </span>
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                            isCust
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {isCust ? 'Customer வரவு' : 'Supplier பற்று'}
+                        </span>
+                      </div>
+                      <div className="text-xs font-bold text-slate-700 mt-0.5">
+                        {rec.customerName || rec.supplierName} • {rec.customerPhone || rec.supplierPhone}
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-slate-700 mt-0.5">
-                      {rec.customerName} • {rec.customerPhone}
+                    <div className="text-right">
+                      <div
+                        className={`font-black text-base ${
+                          isCust ? 'text-emerald-600' : 'text-amber-700'
+                        }`}
+                      >
+                        {formatCurrency(rec.amount)}
+                      </div>
+                      <div className="text-[11px] text-slate-400 font-medium">{formatDate(rec.date)}</div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-black text-emerald-600 text-base">
-                      {formatCurrency(rec.amount)}
+
+                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-1.5">
+                    <button
+                      onClick={() => {
+                        if (isCust) {
+                          onDeleteReceipt(rec.id);
+                        } else {
+                          const updated = supplierPayments.filter((p) => p.id !== rec.id);
+                          setSupplierPayments(updated);
+                          Storage.saveSupplierPayments(updated);
+                        }
+                        showToast('Deleted voucher');
+                      }}
+                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleShareSMS(rec)}
+                        className="px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center gap-1 border border-blue-200"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        SMS
+                      </button>
+                      <button
+                        onClick={() => handleShareWhatsApp(rec)}
+                        className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-xs"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                        WhatsApp
+                      </button>
                     </div>
-                    <div className="text-[11px] text-slate-400 font-medium">{formatDate(rec.date)}</div>
                   </div>
                 </div>
-
-                {rec.notes && (
-                  <div className="text-xs text-slate-600 bg-slate-50 p-1.5 rounded-lg">
-                    Note: {rec.notes}
-                  </div>
-                )}
-
-                <div className="border-t border-slate-100 pt-2.5 flex items-center justify-between gap-1.5">
-                  <button
-                    onClick={() => handleDeleteReceiptItem(rec)}
-                    className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1"
-                    title="Delete Receipt"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Delete</span>
-                  </button>
-
-                  <div className="flex gap-1.5">
-                    <button
-                      onClick={() => handlePreviewPdf(rec)}
-                      className="px-2.5 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 flex items-center gap-1"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View
-                    </button>
-                    <button
-                      onClick={() => handleShareSMS(rec)}
-                      className="px-2.5 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-bold hover:bg-blue-100 flex items-center gap-1 border border-blue-200"
-                    >
-                      <MessageSquare className="w-3.5 h-3.5" />
-                      SMS
-                    </button>
-                    <button
-                      onClick={() => handleShareWhatsApp(rec)}
-                      className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-black hover:bg-emerald-700 flex items-center gap-1 shadow-xs"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                      WhatsApp PDF
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       ) : (
-        /* CREATE RECEIPT FORM */
+        /* CREATE VOUCHER FORM */
         <div className="p-3 space-y-3">
-          {/* Top Bar: Receipt No & Date */}
+          {/* Sub-Toggle: Customer Receipt (வரவு) vs Supplier Payment (பட்டுவாடா) */}
+          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setEntryType('customer');
+                resetForm();
+              }}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                entryType === 'customer'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Customer Receipt (வரவு)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEntryType('supplier');
+                resetForm();
+              }}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                entryType === 'supplier'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Truck className="w-3.5 h-3.5" />
+              <span>Supplier Payment (பட்டுவாடா)</span>
+            </button>
+          </div>
+
+          {/* Top Bar: Number & Date */}
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Receipt Number (தானாக ஏறும்)
+                {entryType === 'customer' ? 'Receipt No. (தானாக ஏறும்)' : 'Voucher No. (தானாக ஏறும்)'}
               </span>
               <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-xs font-bold text-slate-400">No.</span>
-                <span className="font-black text-emerald-600 text-lg">
-                  {autoReceiptNo}
+                <span className="text-xs font-bold text-slate-400">#</span>
+                <span
+                  className={`font-black text-lg ${
+                    entryType === 'customer' ? 'text-emerald-600' : 'text-amber-700'
+                  }`}
+                >
+                  {voucherNo}
                 </span>
               </div>
             </div>
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Receipt Date
+                Date
               </span>
               <input
                 type="date"
@@ -453,82 +602,141 @@ export default function ReceiptScreen({
             </div>
           </div>
 
-          {/* Customer Selection Card */}
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
-            <div className="flex items-center justify-between">
+          {/* Party Card: Customer or Supplier */}
+          {entryType === 'customer' ? (
+            /* CUSTOMER SELECTOR */
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
               <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1">
                 <User className="w-3.5 h-3.5 text-emerald-600" />
                 Customer (வாடிக்கையாளர்) *
               </label>
-              <button
-                type="button"
-                onClick={onOpenAddCustomer}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
-              >
-                + New Customer
-              </button>
-            </div>
 
-            {/* Customer Quick Search */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search customer by name or phone..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <select
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">-- Choose Customer ({filteredCustomers.length}) --</option>
-              {filteredCustomers.map((c) => {
-                const bal = Storage.getCustomerBalance(c.id);
-                return (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone}) {bal.netDue > 0 ? `[Due: ₹${bal.netDue}]` : ''}
-                  </option>
-                );
-              })}
-            </select>
-
-            {selectedCustomer && (
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-slate-800">
-                    {selectedCustomer.name}
-                  </div>
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-emerald-600" />
-                    {selectedCustomer.phone}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <span className="text-[10px] uppercase text-slate-400 block font-bold">
-                    Balance Due
-                  </span>
-                  <span
-                    className={`font-black text-sm ${
-                      customerBalance.netDue > 0 ? 'text-red-600' : 'text-emerald-600'
-                    }`}
-                  >
-                    {formatCurrency(customerBalance.netDue)}
-                  </span>
-                </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  placeholder="Search customer by name or phone..."
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
               </div>
-            )}
-          </div>
 
-          {/* Payment Amount Card */}
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">-- Choose Customer ({filteredCustomers.length}) --</option>
+                {filteredCustomers.map((c) => {
+                  const bal = Storage.getCustomerBalance(c.id);
+                  return (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.phone}) {bal.netDue > 0 ? `[Due: ₹${bal.netDue}]` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+
+              {selectedCustomer && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-slate-800">{selectedCustomer.name}</div>
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-emerald-600" />
+                      {selectedCustomer.phone}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase text-slate-400 block font-bold">
+                      Balance Due
+                    </span>
+                    <span
+                      className={`font-black text-sm ${
+                        customerBalance.netDue > 0 ? 'text-red-600' : 'text-emerald-600'
+                      }`}
+                    >
+                      {formatCurrency(customerBalance.netDue)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* SUPPLIER SELECTOR */
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1">
+                <Truck className="w-3.5 h-3.5 text-amber-600" />
+                Supplier (கொள்முதல் சப்ளையர்) *
+              </label>
+
+              <select
+                value={selectedSupplierName}
+                onChange={(e) => {
+                  const name = e.target.value;
+                  setSelectedSupplierName(name);
+                  const found = savedSuppliers.find((s) => s.name === name);
+                  setSupplierPhone(found?.phone || '');
+                }}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">-- Choose Supplier ({savedSuppliers.length}) --</option>
+                {savedSuppliers.map((s) => {
+                  const bal = Storage.getSupplierBalance(s.name);
+                  return (
+                    <option key={s.name} value={s.name}>
+                      {s.name} {s.phone ? `(${s.phone})` : ''} {bal.netDue > 0 ? `[To Pay: ₹${bal.netDue}]` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+
+              {/* Or type supplier directly */}
+              {!selectedSupplierName && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <input
+                    type="text"
+                    placeholder="Or type Supplier Name"
+                    value={selectedSupplierName}
+                    onChange={(e) => setSelectedSupplierName(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none"
+                  />
+                  <input
+                    type="tel"
+                    placeholder="Phone (WhatsApp)"
+                    value={supplierPhone}
+                    onChange={(e) => setSupplierPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {selectedSupplierName && (
+                <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 flex items-center justify-between text-xs">
+                  <div>
+                    <div className="font-bold text-amber-950">{selectedSupplierName}</div>
+                    <div className="text-[11px] text-slate-500">{supplierPhone || 'No phone'}</div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase text-amber-700 block font-bold">
+                      To Pay Supplier
+                    </span>
+                    <span className="font-black text-amber-800 text-sm">
+                      {formatCurrency(supplierBalance.netDue)}
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Amount Card */}
           <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Amount Received (ரசீது தொகை ₹) *
+                {entryType === 'customer'
+                  ? 'Amount Received (ரசீது வரவு ₹) *'
+                  : 'Amount Paid to Supplier (பட்டுவாடா தொகை ₹) *'}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-3 text-slate-400 font-bold text-lg">
@@ -540,37 +748,40 @@ export default function ReceiptScreen({
                   value={amount}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full pl-8 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                  className={`w-full pl-8 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-2xl font-black text-slate-900 focus:outline-none focus:bg-white ${
+                    entryType === 'customer'
+                      ? 'focus:ring-2 focus:ring-emerald-500'
+                      : 'focus:ring-2 focus:ring-amber-500'
+                  }`}
+                  autoFocus
                 />
               </div>
             </div>
 
-            {/* Quick Amount Suggestion Chips */}
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {customerBalance.netDue > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setAmount(String(customerBalance.netDue))}
-                  className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold"
-                >
-                  Full Due (₹{customerBalance.netDue})
-                </button>
-              )}
-              {[500, 1000, 2000, 5000].map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => setAmount(String(val))}
-                  className="px-2.5 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-xs font-medium"
-                >
-                  +₹{val}
-                </button>
-              ))}
-            </div>
+            {/* Quick Fill Full Due */}
+            {entryType === 'customer' && customerBalance.netDue > 0 && (
+              <button
+                type="button"
+                onClick={() => setAmount(String(customerBalance.netDue))}
+                className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold"
+              >
+                Full Due (₹{customerBalance.netDue})
+              </button>
+            )}
 
-            {/* Payment Mode Selection */}
-            <div className="pt-2">
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
+            {entryType === 'supplier' && supplierBalance.netDue > 0 && (
+              <button
+                type="button"
+                onClick={() => setAmount(String(supplierBalance.netDue))}
+                className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded-lg text-xs font-bold"
+              >
+                Full Supplier Due (₹{supplierBalance.netDue})
+              </button>
+            )}
+
+            {/* Payment Mode */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                 Payment Mode
               </label>
               <div className="grid grid-cols-4 gap-1.5">
@@ -579,10 +790,12 @@ export default function ReceiptScreen({
                     key={mode}
                     type="button"
                     onClick={() => setPaymentMode(mode)}
-                    className={`py-2 rounded-lg text-xs font-semibold transition-all border ${
+                    className={`py-2 rounded-xl text-xs font-bold transition-all ${
                       paymentMode === mode
-                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        ? entryType === 'customer'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-amber-600 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
                     {mode}
@@ -591,40 +804,33 @@ export default function ReceiptScreen({
               </div>
             </div>
 
-            {/* Notes / Ref */}
+            {/* Notes */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                Note / Reference (Optional)
-              </label>
               <input
                 type="text"
-                placeholder="e.g. UTR #, Cheque #, or GPay message"
+                placeholder="Notes / Cheque No / Remarks (Optional)"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:outline-none"
               />
             </div>
-          </div>
 
-          {/* SINGLE PRIMARY SAVE BUTTON: "SAVE & SEND RECEIPT" */}
-          <div className="space-y-2 pt-1">
+            {/* Single Save & Send Button */}
             <button
               type="button"
-              disabled={sharing}
               onClick={handleSingleSaveAndSend}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-base shadow-lg flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
+              className={`w-full py-3.5 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all ${
+                entryType === 'customer'
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-amber-600 hover:bg-amber-700'
+              }`}
             >
               <CheckCircle className="w-5 h-5" />
-              <span>{sharing ? 'Sending...' : 'SAVE & SEND RECEIPT (ரசீது சேமித்து அனுப்புக)'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handlePreviewPdf(null)}
-              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl font-semibold text-xs flex items-center justify-center gap-1"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Preview PDF
+              <span>
+                {entryType === 'customer'
+                  ? 'SAVE & SEND RECEIPT'
+                  : 'SAVE & SEND TO SUPPLIER'}
+              </span>
             </button>
           </div>
         </div>

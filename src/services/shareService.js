@@ -67,3 +67,31 @@ export const sendDirectSMS = (phone, messageText) => {
   window.location.href = `sms:${cleanPhone}?body=${encoded}`;
   return true;
 };
+
+/**
+ * Option to share the actual PDF document file via Android native share sheet to WhatsApp
+ */
+export const sharePdfAsFile = async ({ doc, fileName = 'document.pdf', messageText = '' }) => {
+  try {
+    const pdfBlob = doc.output('blob');
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+    if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      await navigator.share({
+        files: [pdfFile],
+        title: fileName,
+        text: messageText,
+      });
+      return true;
+    } else {
+      doc.save(fileName);
+      return false;
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.warn('Share error:', err);
+      doc.save(fileName);
+    }
+    return false;
+  }
+};

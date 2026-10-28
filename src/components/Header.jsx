@@ -131,14 +131,6 @@ export default function Header({ shop, activeTab, onOpenAddCustomer, syncStatus 
               </div>
             </div>
           </div>
-
-          <button
-            onClick={onOpenAddCustomer}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-semibold border border-blue-200 transition-colors shrink-0"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>+ Customer</span>
-          </button>
         </div>
       </header>
 
