@@ -11,97 +11,129 @@
   },
   "items": [
     {
+      "id": "item-manjal",
+      "name": "MANJAL CHOLAM / மஞ்சள் சோளம்",
+      "price": 5000,
+      "unit": "Bag",
+      "initialStock": 50
+    },
+    {
+      "id": "item-makkacholam",
+      "name": "மக்காச்சோளம் (Corn)",
+      "price": 2200,
+      "unit": "Bag",
+      "initialStock": 40
+    },
+    {
       "id": "item-1",
       "name": "Ponni Boiled Rice (50kg)",
       "price": 2700,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 50
     },
     {
       "id": "item-2",
       "name": "Raw Rice (50kg)",
       "price": 2500,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 40
     },
     {
       "id": "item-3",
       "name": "Kambu - Pearl Millet (50kg)",
       "price": 2100,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 200
     },
     {
       "id": "item-4",
-      "name": "Ragi - Finger Millet (50kg)",
+      "name": "Ragi (Finger Millet) (50kg)",
       "price": 2300,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-5",
-      "name": "Cholam - Sorghum (50kg)",
-      "price": 2000,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 150
     },
     {
       "id": "item-6",
-      "name": "Dhaniya - Coriander (50kg)",
+      "name": "Coriander Seeds (Dhaniya) (50kg)",
       "price": 6500,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 100
     },
     {
       "id": "item-7",
-      "name": "Groundnut - Kadalai (50kg)",
+      "name": "Groundnut (Kadalai) (50kg)",
       "price": 6000,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 120
     },
     {
       "id": "item-8",
-      "name": "Ellu - Gingelly Seeds (50kg)",
+      "name": "Gingelly Seeds (Ellu) (50kg)",
       "price": 9500,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 80
     },
     {
       "id": "item-9",
       "name": "Toor Dal (50kg)",
       "price": 8250,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 150
     },
     {
       "id": "item-10",
       "name": "Urad Dal (50kg)",
       "price": 7000,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 120
     },
     {
       "id": "item-11",
       "name": "Moong Dal (50kg)",
       "price": 6250,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 100
     },
     {
       "id": "item-12",
-      "name": "Kollu - Horse Gram (50kg)",
+      "name": "Horse Gram (Kollu) (50kg)",
       "price": 3250,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 90
     },
     {
       "id": "item-13",
-      "name": "Pachai Payaru (50kg)",
+      "name": "Green Gram (Pachai Payaru) (50kg)",
       "price": 5500,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 110
     },
     {
       "id": "item-14",
-      "name": "Kondakadalai - Bengal Gram (50kg)",
+      "name": "Bengal Gram (Kondakadalai) (50kg)",
       "price": 4750,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 100
     },
     {
       "id": "item-15",
       "name": "Sesame Oil (Tin/Bag)",
       "price": 4350,
-      "unit": "Bag"
+      "unit": "Bag",
+      "initialStock": 60
     }
   ],
   "customers": [
+    {
+      "id": "cust-karthik",
+      "name": "Karthik",
+      "phone": "9715422499",
+      "address": "Thulukkanpalayam",
+      "notes": "Regular Customer",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-10-28T13:40:00.000Z"
+    },
     {
       "id": "cust-1",
       "name": "Veehech Coco Substrates",
@@ -111,10 +143,45 @@
       "openingBalance": 0,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-10-27T13:46:12.269Z"
+    },
+    {
+      "id": "cust-2",
+      "name": "Ramesh Agro Store",
+      "phone": "9789123456",
+      "address": "Main Road, Chennimalai",
+      "notes": "Regular wholesale buyer",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-10-27T13:46:12.269Z"
     }
   ],
-  "sales": [],
+  "sales": [
+    {
+      "id": "sale-1793176600000",
+      "invoiceNo": "2",
+      "date": "2026-10-28",
+      "createdAt": "2026-10-28T14:00:00.000Z",
+      "customerId": "cust-karthik",
+      "customerName": "Karthik",
+      "customerPhone": "9715422499",
+      "items": [
+        {
+          "id": "item-manjal",
+          "name": "MANJAL CHOLAM",
+          "qty": 12,
+          "price": 5000,
+          "unit": "Bag"
+        }
+      ],
+      "subTotal": 60000,
+      "discount": 0,
+      "grandTotal": 60000,
+      "paymentStatus": "CREDIT",
+      "paidAmount": 0,
+      "paymentMode": ""
+    }
+  ],
   "receipts": [],
   "purchases": [],
-  "lastUpdated": "2026-10-28T13:53:00.000Z"
+  "lastUpdated": "2026-10-28T14:30:00.000Z"
 }

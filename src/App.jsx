@@ -267,6 +267,7 @@ export default function App() {
             shop={shop}
             sales={sales}
             receipts={receipts}
+            purchases={purchases}
             onOpenAddCustomer={handleOpenAddCustomer}
             onEditCustomer={handleOpenEditCustomer}
             onDeleteCustomer={handleDeleteCustomer}

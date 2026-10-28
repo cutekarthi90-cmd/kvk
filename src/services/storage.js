@@ -88,16 +88,11 @@ export const Storage = {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Force all items to Bag unit and map names to 50kg standard
-          const updated = parsed.map((item) => {
-            const def = DEFAULT_ITEMS.find((d) => d.id === item.id);
-            return {
-              ...item,
-              name: def ? def.name : item.name.replace(/25kg|1kg/gi, '50kg'),
-              unit: 'Bag',
-            };
-          });
-          return updated;
+          // Keep user items as they are, simply ensuring unit is Bag
+          return parsed.map((item) => ({
+            ...item,
+            unit: 'Bag',
+          }));
         }
       }
       Storage.saveItems(DEFAULT_ITEMS);

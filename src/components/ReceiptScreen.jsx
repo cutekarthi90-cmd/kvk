@@ -34,6 +34,7 @@ export default function ReceiptScreen({
   const [notes, setNotes] = useState('');
   const [activeView, setActiveView] = useState('create');
   const [historySearch, setHistorySearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [sharing, setSharing] = useState(false);
   const [toast, setToast] = useState('');
   const [customReceiptNo, setCustomReceiptNo] = useState('');
@@ -51,6 +52,14 @@ export default function ReceiptScreen({
   }, [receipts.length]);
 
   const nextReceiptNo = autoReceiptNo;
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return customers;
+    const q = customerSearch.toLowerCase();
+    return customers.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+    );
+  }, [customers, customerSearch]);
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === selectedCustomerId) || null;
@@ -71,6 +80,15 @@ export default function ReceiptScreen({
         (r.customerPhone && r.customerPhone.includes(q))
     );
   }, [receipts, historySearch]);
+
+  const sortedReceiptsHistory = useMemo(() => {
+    return [...filteredReceipts].sort((a, b) => {
+      const numA = parseInt(String(a.receiptNo).replace(/[^0-9]/g, ''), 10) || 0;
+      const numB = parseInt(String(b.receiptNo).replace(/[^0-9]/g, ''), 10) || 0;
+      if (numB !== numA) return numB - numA;
+      return new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt);
+    });
+  }, [filteredReceipts]);
 
   const showToast = (msg) => {
     setToast(msg);
@@ -330,12 +348,12 @@ export default function ReceiptScreen({
             />
           </div>
 
-          {filteredReceipts.length === 0 ? (
+          {sortedReceiptsHistory.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
               No payment receipts recorded yet.
             </div>
           ) : (
-            filteredReceipts.slice().reverse().map((rec) => (
+            sortedReceiptsHistory.map((rec) => (
               <div
                 key={rec.id}
                 className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5"
@@ -451,13 +469,25 @@ export default function ReceiptScreen({
               </button>
             </div>
 
+            {/* Customer Quick Search */}
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Search customer by name or phone..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
             <select
               value={selectedCustomerId}
               onChange={(e) => setSelectedCustomerId(e.target.value)}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="">-- Choose Customer --</option>
-              {customers.map((c) => {
+              <option value="">-- Choose Customer ({filteredCustomers.length}) --</option>
+              {filteredCustomers.map((c) => {
                 const bal = Storage.getCustomerBalance(c.id);
                 return (
                   <option key={c.id} value={c.id}>
