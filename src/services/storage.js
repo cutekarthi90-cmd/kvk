@@ -20,23 +20,23 @@ const DEFAULT_SHOP = {
   terms: 'Thank you for your business! Goods once sold will not be taken back.',
 };
 
-// 15 Default Thaniya Mandi items with initial stock (All units: Bag)
+// 15 Default Thaniya Mandi items with initial stock (Standard Per Bag = 50kg)
 const DEFAULT_ITEMS = [
-  { id: 'item-1', name: 'Ponni Boiled Rice 25kg', price: 1350, purchasePrice: 1200, unit: 'Bag', initialStock: 50 },
-  { id: 'item-2', name: 'Raw Rice 25kg', price: 1250, purchasePrice: 1100, unit: 'Bag', initialStock: 40 },
-  { id: 'item-3', name: 'Kambu (Pearl Millet)', price: 1050, purchasePrice: 850, unit: 'Bag', initialStock: 200 },
-  { id: 'item-4', name: 'Ragi (Finger Millet)', price: 1150, purchasePrice: 950, unit: 'Bag', initialStock: 150 },
-  { id: 'item-5', name: 'Cholam (Sorghum)', price: 1000, purchasePrice: 800, unit: 'Bag', initialStock: 180 },
-  { id: 'item-6', name: 'Coriander Seeds (Dhaniya)', price: 1300, purchasePrice: 1050, unit: 'Bag', initialStock: 100 },
-  { id: 'item-7', name: 'Groundnut (Kadalai)', price: 2400, purchasePrice: 1960, unit: 'Bag', initialStock: 120 },
-  { id: 'item-8', name: 'Gingelly Seeds (Ellu)', price: 3800, purchasePrice: 3200, unit: 'Bag', initialStock: 80 },
-  { id: 'item-9', name: 'Toor Dal', price: 3300, purchasePrice: 2800, unit: 'Bag', initialStock: 150 },
-  { id: 'item-10', name: 'Urad Dal', price: 2800, purchasePrice: 2360, unit: 'Bag', initialStock: 120 },
-  { id: 'item-11', name: 'Moong Dal', price: 2500, purchasePrice: 2100, unit: 'Bag', initialStock: 100 },
-  { id: 'item-12', name: 'Horse Gram (Kollu)', price: 1300, purchasePrice: 1000, unit: 'Bag', initialStock: 90 },
-  { id: 'item-13', name: 'Green Gram (Pachai Payaru)', price: 2200, purchasePrice: 1800, unit: 'Bag', initialStock: 110 },
-  { id: 'item-14', name: 'Bengal Gram (Kondakadalai)', price: 1900, purchasePrice: 1560, unit: 'Bag', initialStock: 100 },
-  { id: 'item-15', name: 'Sesame Oil (Tin/Bag)', price: 2900, purchasePrice: 2450, unit: 'Bag', initialStock: 60 },
+  { id: 'item-1', name: 'Ponni Boiled Rice (50kg)', price: 2700, purchasePrice: 2400, unit: 'Bag', initialStock: 50 },
+  { id: 'item-2', name: 'Raw Rice (50kg)', price: 2500, purchasePrice: 2200, unit: 'Bag', initialStock: 40 },
+  { id: 'item-3', name: 'Kambu - Pearl Millet (50kg)', price: 2100, purchasePrice: 1700, unit: 'Bag', initialStock: 200 },
+  { id: 'item-4', name: 'Ragi - Finger Millet (50kg)', price: 2300, purchasePrice: 1900, unit: 'Bag', initialStock: 150 },
+  { id: 'item-5', name: 'Cholam - Sorghum (50kg)', price: 2000, purchasePrice: 1600, unit: 'Bag', initialStock: 180 },
+  { id: 'item-6', name: 'Dhaniya - Coriander (50kg)', price: 6500, purchasePrice: 5250, unit: 'Bag', initialStock: 100 },
+  { id: 'item-7', name: 'Groundnut - Kadalai (50kg)', price: 6000, purchasePrice: 4900, unit: 'Bag', initialStock: 120 },
+  { id: 'item-8', name: 'Ellu - Gingelly Seeds (50kg)', price: 9500, purchasePrice: 8000, unit: 'Bag', initialStock: 80 },
+  { id: 'item-9', name: 'Toor Dal (50kg)', price: 8250, purchasePrice: 7000, unit: 'Bag', initialStock: 150 },
+  { id: 'item-10', name: 'Urad Dal (50kg)', price: 7000, purchasePrice: 5900, unit: 'Bag', initialStock: 120 },
+  { id: 'item-11', name: 'Moong Dal (50kg)', price: 6250, purchasePrice: 5250, unit: 'Bag', initialStock: 100 },
+  { id: 'item-12', name: 'Kollu - Horse Gram (50kg)', price: 3250, purchasePrice: 2500, unit: 'Bag', initialStock: 90 },
+  { id: 'item-13', name: 'Pachai Payaru (50kg)', price: 5500, purchasePrice: 4500, unit: 'Bag', initialStock: 110 },
+  { id: 'item-14', name: 'Kondakadalai - Bengal Gram (50kg)', price: 4750, purchasePrice: 3900, unit: 'Bag', initialStock: 100 },
+  { id: 'item-15', name: 'Sesame Oil (Tin/Bag)', price: 4350, purchasePrice: 3675, unit: 'Bag', initialStock: 60 },
 ];
 
 const DEFAULT_CUSTOMERS = [
@@ -88,8 +88,15 @@ export const Storage = {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Force all items to Bag unit as requested
-          const updated = parsed.map((item) => ({ ...item, unit: 'Bag' }));
+          // Force all items to Bag unit and map names to 50kg standard
+          const updated = parsed.map((item) => {
+            const def = DEFAULT_ITEMS.find((d) => d.id === item.id);
+            return {
+              ...item,
+              name: def ? def.name : item.name.replace(/25kg|1kg/gi, '50kg'),
+              unit: 'Bag',
+            };
+          });
           return updated;
         }
       }

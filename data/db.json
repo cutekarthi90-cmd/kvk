@@ -12,92 +12,92 @@
   "items": [
     {
       "id": "item-1",
-      "name": "Ponni Boiled Rice 25kg",
-      "price": 1350,
+      "name": "Ponni Boiled Rice (50kg)",
+      "price": 2700,
       "unit": "Bag"
     },
     {
       "id": "item-2",
-      "name": "Raw Rice 25kg",
-      "price": 1250,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-3",
-      "name": "Kambu (Pearl Millet)",
-      "price": 1050,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-4",
-      "name": "Ragi (Finger Millet)",
-      "price": 1150,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-5",
-      "name": "Cholam (Sorghum)",
-      "price": 1000,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-6",
-      "name": "Coriander Seeds (Dhaniya)",
-      "price": 1300,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-7",
-      "name": "Groundnut (Kadalai)",
-      "price": 2400,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-8",
-      "name": "Gingelly Seeds (Ellu)",
-      "price": 3800,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-9",
-      "name": "Toor Dal",
-      "price": 3300,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-10",
-      "name": "Urad Dal",
-      "price": 2800,
-      "unit": "Bag"
-    },
-    {
-      "id": "item-11",
-      "name": "Moong Dal",
+      "name": "Raw Rice (50kg)",
       "price": 2500,
       "unit": "Bag"
     },
     {
+      "id": "item-3",
+      "name": "Kambu - Pearl Millet (50kg)",
+      "price": 2100,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-4",
+      "name": "Ragi - Finger Millet (50kg)",
+      "price": 2300,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-5",
+      "name": "Cholam - Sorghum (50kg)",
+      "price": 2000,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-6",
+      "name": "Dhaniya - Coriander (50kg)",
+      "price": 6500,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-7",
+      "name": "Groundnut - Kadalai (50kg)",
+      "price": 6000,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-8",
+      "name": "Ellu - Gingelly Seeds (50kg)",
+      "price": 9500,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-9",
+      "name": "Toor Dal (50kg)",
+      "price": 8250,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-10",
+      "name": "Urad Dal (50kg)",
+      "price": 7000,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-11",
+      "name": "Moong Dal (50kg)",
+      "price": 6250,
+      "unit": "Bag"
+    },
+    {
       "id": "item-12",
-      "name": "Horse Gram (Kollu)",
-      "price": 1300,
+      "name": "Kollu - Horse Gram (50kg)",
+      "price": 3250,
       "unit": "Bag"
     },
     {
       "id": "item-13",
-      "name": "Green Gram (Pachai Payaru)",
-      "price": 2200,
+      "name": "Pachai Payaru (50kg)",
+      "price": 5500,
       "unit": "Bag"
     },
     {
       "id": "item-14",
-      "name": "Bengal Gram (Kondakadalai)",
-      "price": 1900,
+      "name": "Kondakadalai - Bengal Gram (50kg)",
+      "price": 4750,
       "unit": "Bag"
     },
     {
       "id": "item-15",
       "name": "Sesame Oil (Tin/Bag)",
-      "price": 2900,
+      "price": 4350,
       "unit": "Bag"
     }
   ],
@@ -116,5 +116,5 @@
   "sales": [],
   "receipts": [],
   "purchases": [],
-  "lastUpdated": "2026-10-28T13:50:00.000Z"
+  "lastUpdated": "2026-10-28T13:53:00.000Z"
 }
