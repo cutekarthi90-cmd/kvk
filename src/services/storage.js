@@ -1,0 +1,343 @@
+// Local Storage Service for QuickBill - KVK Thaniya Mandi
+
+const STORAGE_KEYS = {
+  SHOP: 'quickbill_shop_settings',
+  ITEMS: 'quickbill_items',
+  CUSTOMERS: 'quickbill_customers',
+  SALES: 'quickbill_sales',
+  RECEIPTS: 'quickbill_receipts',
+  PURCHASES: 'quickbill_purchases',
+};
+
+const DEFAULT_SHOP = {
+  name: 'KVK THANIYA MANDI',
+  proprietor: '',
+  phone: '9486668732 / 9443995160',
+  address: 'No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI, Erode - 638 051',
+  gstin: '33BJGPV4768L1ZH',
+  pan: 'BJGPV4768L',
+  upiId: '',
+  terms: 'Thank you for your business! Goods once sold will not be taken back.',
+};
+
+// 15 Default Thaniya Mandi items with initial stock
+const DEFAULT_ITEMS = [
+  { id: 'item-1', name: 'Ponni Boiled Rice 25kg', price: 1350, purchasePrice: 1200, unit: 'Bag', initialStock: 50 },
+  { id: 'item-2', name: 'Raw Rice 25kg', price: 1250, purchasePrice: 1100, unit: 'Bag', initialStock: 40 },
+  { id: 'item-3', name: 'Kambu (Pearl Millet) 1kg', price: 42, purchasePrice: 34, unit: 'Kg', initialStock: 200 },
+  { id: 'item-4', name: 'Ragi (Finger Millet) 1kg', price: 46, purchasePrice: 38, unit: 'Kg', initialStock: 150 },
+  { id: 'item-5', name: 'Cholam (Sorghum) 1kg', price: 40, purchasePrice: 32, unit: 'Kg', initialStock: 180 },
+  { id: 'item-6', name: 'Coriander Seeds (Dhaniya) 1kg', price: 130, purchasePrice: 105, unit: 'Kg', initialStock: 100 },
+  { id: 'item-7', name: 'Groundnut (Kadalai) 1kg', price: 120, purchasePrice: 98, unit: 'Kg', initialStock: 120 },
+  { id: 'item-8', name: 'Gingelly Seeds (Ellu) 1kg', price: 190, purchasePrice: 160, unit: 'Kg', initialStock: 80 },
+  { id: 'item-9', name: 'Toor Dal 1kg', price: 165, purchasePrice: 140, unit: 'Kg', initialStock: 150 },
+  { id: 'item-10', name: 'Urad Dal 1kg', price: 140, purchasePrice: 118, unit: 'Kg', initialStock: 120 },
+  { id: 'item-11', name: 'Moong Dal 1kg', price: 125, purchasePrice: 105, unit: 'Kg', initialStock: 100 },
+  { id: 'item-12', name: 'Horse Gram (Kollu) 1kg', price: 65, purchasePrice: 50, unit: 'Kg', initialStock: 90 },
+  { id: 'item-13', name: 'Green Gram (Pachai Payaru) 1kg', price: 110, purchasePrice: 90, unit: 'Kg', initialStock: 110 },
+  { id: 'item-14', name: 'Bengal Gram (Kondakadalai) 1kg', price: 95, purchasePrice: 78, unit: 'Kg', initialStock: 100 },
+  { id: 'item-15', name: 'Sesame Oil 1L', price: 290, purchasePrice: 245, unit: 'Btl', initialStock: 60 },
+];
+
+const DEFAULT_CUSTOMERS = [
+  {
+    id: 'cust-1',
+    name: 'Veehech Coco Substrates',
+    phone: '9486668732',
+    address: 'SF 71, Chennimalai Road, Thulukampalayam, Perundurai TK, Erode',
+    notes: 'GSTIN: 33AE...',
+    openingBalance: 0,
+    openingBalanceType: 'DEBIT',
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'cust-2',
+    name: 'Ramesh Agro Store',
+    phone: '9789123456',
+    address: 'Main Road, Chennimalai',
+    notes: 'Regular wholesale buyer',
+    openingBalance: 0,
+    openingBalanceType: 'DEBIT',
+    createdAt: new Date().toISOString(),
+  },
+];
+
+export const Storage = {
+  getShopSettings: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SHOP);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (parsed.name && parsed.name !== 'SRI MURUGAN TRADERS') {
+          return parsed;
+        }
+      }
+      Storage.saveShopSettings(DEFAULT_SHOP);
+      return DEFAULT_SHOP;
+    } catch {
+      return DEFAULT_SHOP;
+    }
+  },
+  saveShopSettings: (settings) => {
+    localStorage.setItem(STORAGE_KEYS.SHOP, JSON.stringify(settings));
+  },
+
+  getItems: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.ITEMS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      Storage.saveItems(DEFAULT_ITEMS);
+      return DEFAULT_ITEMS;
+    } catch {
+      return DEFAULT_ITEMS;
+    }
+  },
+  saveItems: (items) => {
+    localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(items));
+  },
+
+  getCustomers: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      Storage.saveCustomers(DEFAULT_CUSTOMERS);
+      return DEFAULT_CUSTOMERS;
+    } catch {
+      return DEFAULT_CUSTOMERS;
+    }
+  },
+  saveCustomers: (customers) => {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+  },
+
+  getSales: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SALES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  saveSales: (sales) => {
+    localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+  },
+
+  getReceipts: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.RECEIPTS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  saveReceipts: (receipts) => {
+    localStorage.setItem(STORAGE_KEYS.RECEIPTS, JSON.stringify(receipts));
+  },
+
+  getPurchases: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.PURCHASES);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  savePurchases: (purchases) => {
+    localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
+  },
+
+  // Calculate live item stock: Initial Stock + Total Purchased - Total Sold
+  getItemStock: (itemId) => {
+    const items = Storage.getItems();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return 0;
+
+    const initial = Number(item.initialStock) || 0;
+    const purchases = Storage.getPurchases();
+    const sales = Storage.getSales();
+
+    let purchasedQty = 0;
+    purchases.forEach((p) => {
+      (p.items || []).forEach((pi) => {
+        if (pi.id === itemId) {
+          purchasedQty += Number(pi.qty) || 0;
+        }
+      });
+    });
+
+    let soldQty = 0;
+    sales.forEach((s) => {
+      (s.items || []).forEach((si) => {
+        if (si.id === itemId) {
+          soldQty += Number(si.qty) || 0;
+        }
+      });
+    });
+
+    return initial + purchasedQty - soldQty;
+  },
+
+  // Calculate customer balance including Opening Balance
+  getCustomerBalance: (customerId) => {
+    const cust = Storage.getCustomers().find((c) => c.id === customerId);
+    const opBal = Number(cust?.openingBalance) || 0;
+    const opType = cust?.openingBalanceType || 'DEBIT';
+
+    const sales = Storage.getSales().filter((s) => s.customerId === customerId);
+    const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+
+    const totalSales = sales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
+    const totalReceipts = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    const immediatePaid = sales.reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
+    const totalPaid = totalReceipts + immediatePaid;
+
+    let netDue = 0;
+    if (opType === 'CREDIT') {
+      netDue = totalSales - totalPaid - opBal;
+    } else {
+      netDue = opBal + totalSales - totalPaid;
+    }
+
+    return {
+      openingBalance: opBal,
+      openingBalanceType: opType,
+      totalSales,
+      totalPaid,
+      netDue,
+    };
+  },
+
+  // Full customer ledger transactions sorted by date ascending with Opening Balance
+  getCustomerLedger: (customerId) => {
+    const cust = Storage.getCustomers().find((c) => c.id === customerId);
+    const opBal = Number(cust?.openingBalance) || 0;
+    const opType = cust?.openingBalanceType || 'DEBIT';
+
+    const sales = Storage.getSales().filter((s) => s.customerId === customerId);
+    const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+
+    const transactions = [];
+
+    // 1. Opening Balance Transaction if present
+    if (opBal > 0) {
+      const opDate = cust.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
+      transactions.push({
+        id: `cust-${customerId}-opbal`,
+        date: opDate,
+        createdAt: cust.createdAt || '2026-01-01',
+        type: 'OPENING',
+        refNo: 'OP-BAL',
+        description: 'Opening Balance (பழைய பாக்கி)',
+        debit: opType === 'DEBIT' ? opBal : 0,
+        credit: opType === 'CREDIT' ? opBal : 0,
+      });
+    }
+
+    sales.forEach((s) => {
+      transactions.push({
+        id: s.id,
+        date: s.date,
+        createdAt: s.createdAt || s.date,
+        type: 'SALE',
+        refNo: String(s.invoiceNo || '1'),
+        description: `Sale: ${s.items.length} items (${s.items.map((i) => i.name).slice(0, 2).join(', ')}${s.items.length > 2 ? '...' : ''})`,
+        debit: Number(s.grandTotal) || 0,
+        credit: 0,
+        paidAmount: Number(s.paidAmount) || 0,
+        items: s.items,
+        raw: s,
+      });
+
+      if (Number(s.paidAmount) > 0) {
+        transactions.push({
+          id: `${s.id}-paid`,
+          date: s.date,
+          createdAt: s.createdAt || s.date,
+          type: 'RECEIPT',
+          refNo: `${s.invoiceNo} (Paid)`,
+          description: `Immediate payment on Bill #${s.invoiceNo}`,
+          debit: 0,
+          credit: Number(s.paidAmount) || 0,
+          paymentMode: s.paymentMode || 'Cash',
+          raw: s,
+        });
+      }
+    });
+
+    receipts.forEach((r) => {
+      transactions.push({
+        id: r.id,
+        date: r.date,
+        createdAt: r.createdAt || r.date,
+        type: 'RECEIPT',
+        refNo: String(r.receiptNo || '1'),
+        description: `Receipt: ${r.paymentMode || 'Cash'} ${r.notes ? `(${r.notes})` : ''}`,
+        debit: 0,
+        credit: Number(r.amount) || 0,
+        paymentMode: r.paymentMode,
+        raw: r,
+      });
+    });
+
+    // Sort by date ascending (keep opening balance first if same date)
+    transactions.sort((a, b) => {
+      if (a.type === 'OPENING') return -1;
+      if (b.type === 'OPENING') return 1;
+      return new Date(a.date) - new Date(b.date);
+    });
+
+    // Calculate running balance
+    let running = 0;
+    return transactions.map((t) => {
+      running = running + t.debit - t.credit;
+      return {
+        ...t,
+        balance: running,
+      };
+    });
+  },
+
+  exportBackupData: () => {
+    return JSON.stringify({
+      shop: Storage.getShopSettings(),
+      items: Storage.getItems(),
+      customers: Storage.getCustomers(),
+      sales: Storage.getSales(),
+      receipts: Storage.getReceipts(),
+      purchases: Storage.getPurchases(),
+      exportDate: new Date().toISOString(),
+      version: '2.0',
+    }, null, 2);
+  },
+
+  restoreBackupData: (jsonString) => {
+    try {
+      const data = JSON.parse(jsonString);
+      if (data.shop) Storage.saveShopSettings(data.shop);
+      if (Array.isArray(data.items)) Storage.saveItems(data.items);
+      if (Array.isArray(data.customers)) Storage.saveCustomers(data.customers);
+      if (Array.isArray(data.sales)) Storage.saveSales(data.sales);
+      if (Array.isArray(data.receipts)) Storage.saveReceipts(data.receipts);
+      if (Array.isArray(data.purchases)) Storage.savePurchases(data.purchases);
+      return true;
+    } catch (e) {
+      console.error('Failed to restore backup', e);
+      return false;
+    }
+  },
+
+  resetToDefault: () => {
+    Storage.saveShopSettings(DEFAULT_SHOP);
+    Storage.saveItems(DEFAULT_ITEMS);
+    Storage.saveCustomers(DEFAULT_CUSTOMERS);
+    Storage.saveSales([]);
+    Storage.saveReceipts([]);
+    Storage.savePurchases([]);
+  },
+};
