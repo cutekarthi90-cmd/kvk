@@ -13,7 +13,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
-  const commonUnits = ['Bag', 'Kg', 'Pkt', 'Box', 'Nos', 'Tin', 'Ltr', 'Gram', 'Bundle'];
+  const commonUnits = ['Bag'];
 
   // Stock calculations per item
   const itemStockStats = useMemo(() => {
@@ -102,7 +102,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
               price: numPrice,
               purchasePrice: numPurchase,
               initialStock: numInitialStock,
-              unit: unit.trim(),
+              unit: 'Bag',
             }
           : i
       );
@@ -114,7 +114,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
         price: numPrice,
         purchasePrice: numPurchase,
         initialStock: numInitialStock,
-        unit: unit.trim(),
+        unit: 'Bag',
       };
       onSaveItems([...items, newItem]);
     }
@@ -222,19 +222,12 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                Unit (Measure)
+                Unit (அளவீடு)
               </label>
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:outline-none"
-              >
-                {commonUnits.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg text-xs font-black text-blue-700 flex items-center justify-between">
+                <span>Bag</span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">50kg</span>
+              </div>
             </div>
           </div>
 
