@@ -19,7 +19,7 @@ import {
   Package
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
-import { sharePdfToWhatsApp, sharePdfAsFile, formatWhatsAppPhone } from '../services/shareService';
+import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';
 import { Storage } from '../services/storage';
 
 export default function SaleScreen({
@@ -202,7 +202,7 @@ export default function SaleScreen({
   };
 
   // Share to WhatsApp (PDF + Text)
-  const handleShareWhatsApp = async (saleToShare) => {
+  const handleShareWhatsApp = (saleToShare) => {
     const customer = customers.find((c) => c.id === saleToShare.customerId) || {
       name: saleToShare.customerName,
       phone: saleToShare.customerPhone,
@@ -213,30 +213,17 @@ export default function SaleScreen({
       return;
     }
 
-    setSharing(true);
     try {
-      const doc = generateSaleInvoicePDF(saleToShare, customer, shop);
-      const fileName = `${shop.name || 'Bill'}_No_${saleToShare.invoiceNo}.pdf`.replace(/\s+/g, '_');
       const whatsappMsg = getBillMessageText(saleToShare, customer);
-
-      await sharePdfToWhatsApp({
-        doc,
-        fileName,
-        phone: customer.phone,
-        customerName: customer.name,
-        messageText: whatsappMsg,
-      });
-
-      showToast('Invoice sent to WhatsApp!');
+      openDirectWhatsApp(customer.phone, whatsappMsg);
+      showToast('Opening WhatsApp directly to customer...');
     } catch (e) {
       console.error(e);
-      showToast('Failed to generate PDF');
-    } finally {
-      setSharing(false);
+      showToast('Failed to open WhatsApp');
     }
   };
 
-  const handleSharePdfFile = async (saleToShare) => {
+  const handleDownloadPdf = (saleToShare) => {
     const customer = customers.find((c) => c.id === saleToShare.customerId) || {
       name: saleToShare.customerName,
       phone: saleToShare.customerPhone,
@@ -244,10 +231,11 @@ export default function SaleScreen({
     try {
       const doc = generateSaleInvoicePDF(saleToShare, customer, shop);
       const fileName = `${shop.name || 'Bill'}_No_${saleToShare.invoiceNo}.pdf`.replace(/\s+/g, '_');
-      const msg = getBillMessageText(saleToShare, customer);
-      await sharePdfAsFile({ doc, fileName, messageText: msg });
+      downloadPdfFile(doc, fileName);
+      showToast('PDF downloaded successfully!');
     } catch (err) {
-      console.warn('Share error:', err);
+      console.warn('Download error:', err);
+      showToast('Failed to download PDF');
     }
   };
 
@@ -380,19 +368,10 @@ export default function SaleScreen({
               <button
                 type="button"
                 onClick={() => handleShareWhatsApp(lastSavedBill)}
-                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 active:scale-95 transition-transform"
               >
                 <Share2 className="w-4 h-4" />
-                <span>1-Tap WhatsApp Chat (Bill Text)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSharePdfFile(lastSavedBill)}
-                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-slate-300"
-              >
-                <FileText className="w-4 h-4 text-red-500" />
-                <span>Share PDF File as Attachment</span>
+                <span>1-Tap WhatsApp to Customer (Direct)</span>
               </button>
 
               <button
@@ -401,7 +380,16 @@ export default function SaleScreen({
                 className="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-blue-200"
               >
                 <MessageSquare className="w-4 h-4" />
-                <span>Send via Normal SMS Message</span>
+                <span>Send Normal SMS Message</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadPdf(lastSavedBill)}
+                className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-slate-300"
+              >
+                <FileText className="w-4 h-4 text-red-500" />
+                <span>Download PDF Bill Copy</span>
               </button>
             </div>
 
@@ -576,68 +564,159 @@ export default function SaleScreen({
           {/* Customer Selection Card */}
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1">
-                <User className="w-3.5 h-3.5 text-blue-600" />
+              <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+                <User className="w-4 h-4 text-blue-600" />
                 Customer (வாடிக்கையாளர்) *
               </label>
               <button
                 type="button"
                 onClick={onOpenAddCustomer}
-                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
+                className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200"
               >
                 + New Customer
               </button>
             </div>
 
-            {/* Customer Quick Search Bar */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-              <input
-                type="text"
-                placeholder="Search customer by name or phone..."
-                value={customerSearch}
-                onChange={(e) => setCustomerSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <select
-              value={selectedCustomerId}
-              onChange={(e) => setSelectedCustomerId(e.target.value)}
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">-- Choose Customer ({filteredCustomers.length}) --</option>
-              {filteredCustomers.map((c) => {
-                const bal = Storage.getCustomerBalance(c.id);
-                return (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.phone}) {bal.netDue > 0 ? `[Due: ₹${bal.netDue}]` : ''}
-                  </option>
-                );
-              })}
-            </select>
-
-            {selectedCustomer && (
-              <div className="p-2.5 bg-blue-50/70 rounded-xl flex items-center justify-between text-xs text-blue-950 border border-blue-100">
+            {/* If Customer is Selected: Show Name in Big Bold font with details and Change button */}
+            {selectedCustomer ? (
+              <div className="p-3 bg-emerald-50 rounded-xl border-2 border-emerald-400 flex items-center justify-between text-xs animate-in fade-in duration-150">
                 <div>
-                  <div className="font-bold flex items-center gap-1">
-                    <Phone className="w-3 h-3 text-emerald-600" />
-                    {selectedCustomer.phone}
+                  <div className="text-[10px] uppercase font-black text-emerald-700 tracking-wider flex items-center gap-1">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                    Selected Customer
                   </div>
-                  {selectedCustomer.address && (
-                    <div className="text-[11px] text-slate-500 truncate max-w-[200px] mt-0.5">
-                      {selectedCustomer.address}
-                    </div>
-                  )}
+                  <div className="font-black text-slate-900 text-base mt-0.5">
+                    {selectedCustomer.name}
+                  </div>
+                  <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-semibold">
+                    <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                    {selectedCustomer.phone}
+                    {selectedCustomer.address && (
+                      <span className="text-slate-500 font-normal truncate max-w-[150px]">
+                        • {selectedCustomer.address}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className="text-[10px] text-slate-400 block font-bold uppercase">
+
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-slate-500 block font-bold uppercase">
                     Past Due
                   </span>
-                  <span className="font-extrabold text-red-600">
+                  <span className="font-black text-sm text-red-600 block">
                     {formatCurrency(Storage.getCustomerBalance(selectedCustomer.id).netDue)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCustomerId('');
+                      setCustomerSearch('');
+                    }}
+                    className="mt-1 px-2.5 py-1 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 border border-slate-300 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    Change
+                  </button>
                 </div>
+              </div>
+            ) : (
+              /* When choosing a customer: Search bar + Direct Name List below */
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    placeholder="Type name to search (எ.கா: Ram)..."
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border-2 border-blue-200 focus:border-blue-600 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none"
+                  />
+                  {customerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomerSearch('')}
+                      className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                {/* DIRECT MATCHING CUSTOMER NAMES (Appears immediately below search!) */}
+                {customerSearch.trim() ? (
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto border border-blue-200 rounded-xl p-1 bg-blue-50/40">
+                    {filteredCustomers.length === 0 ? (
+                      <div className="p-4 text-center">
+                        <p className="text-xs text-slate-500 font-medium">
+                          "{customerSearch}" matching customer illa.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={onOpenAddCustomer}
+                          className="mt-2 text-xs text-blue-600 font-bold underline"
+                        >
+                          + Click here to add "{customerSearch}" as New Customer
+                        </button>
+                      </div>
+                    ) : (
+                      filteredCustomers.map((c) => {
+                        const bal = Storage.getCustomerBalance(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedCustomerId(c.id);
+                              setCustomerSearch('');
+                            }}
+                            className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-400 flex items-center justify-between shadow-2xs transition-all active:scale-98"
+                          >
+                            <div>
+                              <div className="font-black text-slate-900 text-sm">
+                                {c.name}
+                              </div>
+                              <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-medium">
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                {c.phone} {c.address ? `• ${c.address}` : ''}
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {bal.netDue > 0 ? (
+                                <span className="text-[11px] bg-red-100 text-red-700 font-black px-2 py-0.5 rounded-full">
+                                  Due: ₹{bal.netDue}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-emerald-700 font-bold">
+                                  No Due
+                                </span>
+                              )}
+                              <span className="block text-[10px] text-blue-600 font-black mt-0.5">
+                                Tap to Select →
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                ) : (
+                  /* If search is blank: show direct selectable dropdown list */
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">-- Or Pick Customer from List ({customers.length}) --</option>
+                    {customers.map((c) => {
+                      const bal = Storage.getCustomerBalance(c.id);
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.phone}) {bal.netDue > 0 ? `[Due: ₹${bal.netDue}]` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
               </div>
             )}
           </div>
