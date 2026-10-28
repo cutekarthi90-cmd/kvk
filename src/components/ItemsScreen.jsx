@@ -9,11 +9,11 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
   const [price, setPrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [initialStock, setInitialStock] = useState('0');
-  const [unit, setUnit] = useState('Kg');
+  const [unit, setUnit] = useState('Bag');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
-  const commonUnits = ['Kg', 'Bag', 'Pkt', 'Btl', 'Box', 'Nos', 'Ltr', 'Gram', 'Tin', 'Bundle'];
+  const commonUnits = ['Bag', 'Kg', 'Pkt', 'Box', 'Nos', 'Tin', 'Ltr', 'Gram', 'Bundle'];
 
   // Stock calculations per item
   const itemStockStats = useMemo(() => {
@@ -57,7 +57,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
     setPrice('');
     setPurchasePrice('');
     setInitialStock('0');
-    setUnit('Kg');
+    setUnit('Bag');
     setError('');
   };
 

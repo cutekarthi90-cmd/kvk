@@ -40,19 +40,19 @@ const DEFAULT_DB = {
   items: [
     { id: 'item-1', name: 'Ponni Boiled Rice 25kg', price: 1350, unit: 'Bag' },
     { id: 'item-2', name: 'Raw Rice 25kg', price: 1250, unit: 'Bag' },
-    { id: 'item-3', name: 'Kambu (Pearl Millet) 1kg', price: 42, unit: 'Kg' },
-    { id: 'item-4', name: 'Ragi (Finger Millet) 1kg', price: 46, unit: 'Kg' },
-    { id: 'item-5', name: 'Cholam (Sorghum) 1kg', price: 40, unit: 'Kg' },
-    { id: 'item-6', name: 'Coriander Seeds (Dhaniya) 1kg', price: 130, unit: 'Kg' },
-    { id: 'item-7', name: 'Groundnut (Kadalai) 1kg', price: 120, unit: 'Kg' },
-    { id: 'item-8', name: 'Gingelly Seeds (Ellu) 1kg', price: 190, unit: 'Kg' },
-    { id: 'item-9', name: 'Toor Dal 1kg', price: 165, unit: 'Kg' },
-    { id: 'item-10', name: 'Urad Dal 1kg', price: 140, unit: 'Kg' },
-    { id: 'item-11', name: 'Moong Dal 1kg', price: 125, unit: 'Kg' },
-    { id: 'item-12', name: 'Horse Gram (Kollu) 1kg', price: 65, unit: 'Kg' },
-    { id: 'item-13', name: 'Green Gram (Pachai Payaru) 1kg', price: 110, unit: 'Kg' },
-    { id: 'item-14', name: 'Bengal Gram (Kondakadalai) 1kg', price: 95, unit: 'Kg' },
-    { id: 'item-15', name: 'Sesame Oil 1L', price: 290, unit: 'Btl' },
+    { id: 'item-3', name: 'Kambu (Pearl Millet)', price: 1050, unit: 'Bag' },
+    { id: 'item-4', name: 'Ragi (Finger Millet)', price: 1150, unit: 'Bag' },
+    { id: 'item-5', name: 'Cholam (Sorghum)', price: 1000, unit: 'Bag' },
+    { id: 'item-6', name: 'Coriander Seeds (Dhaniya)', price: 1300, unit: 'Bag' },
+    { id: 'item-7', name: 'Groundnut (Kadalai)', price: 2400, unit: 'Bag' },
+    { id: 'item-8', name: 'Gingelly Seeds (Ellu)', price: 3800, unit: 'Bag' },
+    { id: 'item-9', name: 'Toor Dal', price: 3300, unit: 'Bag' },
+    { id: 'item-10', name: 'Urad Dal', price: 2800, unit: 'Bag' },
+    { id: 'item-11', name: 'Moong Dal', price: 2500, unit: 'Bag' },
+    { id: 'item-12', name: 'Horse Gram (Kollu)', price: 1300, unit: 'Bag' },
+    { id: 'item-13', name: 'Green Gram (Pachai Payaru)', price: 2200, unit: 'Bag' },
+    { id: 'item-14', name: 'Bengal Gram (Kondakadalai)', price: 1900, unit: 'Bag' },
+    { id: 'item-15', name: 'Sesame Oil (Tin/Bag)', price: 2900, unit: 'Bag' },
   ],
   customers: [
     {
@@ -85,7 +85,11 @@ const readDB = () => {
       return DEFAULT_DB;
     }
     const content = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed.items)) {
+      parsed.items = parsed.items.map((item) => ({ ...item, unit: 'Bag' }));
+    }
+    return parsed;
   } catch (err) {
     console.error('Error reading db:', err);
     return DEFAULT_DB;

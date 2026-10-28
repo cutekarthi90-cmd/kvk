@@ -20,23 +20,23 @@ const DEFAULT_SHOP = {
   terms: 'Thank you for your business! Goods once sold will not be taken back.',
 };
 
-// 15 Default Thaniya Mandi items with initial stock
+// 15 Default Thaniya Mandi items with initial stock (All units: Bag)
 const DEFAULT_ITEMS = [
   { id: 'item-1', name: 'Ponni Boiled Rice 25kg', price: 1350, purchasePrice: 1200, unit: 'Bag', initialStock: 50 },
   { id: 'item-2', name: 'Raw Rice 25kg', price: 1250, purchasePrice: 1100, unit: 'Bag', initialStock: 40 },
-  { id: 'item-3', name: 'Kambu (Pearl Millet) 1kg', price: 42, purchasePrice: 34, unit: 'Kg', initialStock: 200 },
-  { id: 'item-4', name: 'Ragi (Finger Millet) 1kg', price: 46, purchasePrice: 38, unit: 'Kg', initialStock: 150 },
-  { id: 'item-5', name: 'Cholam (Sorghum) 1kg', price: 40, purchasePrice: 32, unit: 'Kg', initialStock: 180 },
-  { id: 'item-6', name: 'Coriander Seeds (Dhaniya) 1kg', price: 130, purchasePrice: 105, unit: 'Kg', initialStock: 100 },
-  { id: 'item-7', name: 'Groundnut (Kadalai) 1kg', price: 120, purchasePrice: 98, unit: 'Kg', initialStock: 120 },
-  { id: 'item-8', name: 'Gingelly Seeds (Ellu) 1kg', price: 190, purchasePrice: 160, unit: 'Kg', initialStock: 80 },
-  { id: 'item-9', name: 'Toor Dal 1kg', price: 165, purchasePrice: 140, unit: 'Kg', initialStock: 150 },
-  { id: 'item-10', name: 'Urad Dal 1kg', price: 140, purchasePrice: 118, unit: 'Kg', initialStock: 120 },
-  { id: 'item-11', name: 'Moong Dal 1kg', price: 125, purchasePrice: 105, unit: 'Kg', initialStock: 100 },
-  { id: 'item-12', name: 'Horse Gram (Kollu) 1kg', price: 65, purchasePrice: 50, unit: 'Kg', initialStock: 90 },
-  { id: 'item-13', name: 'Green Gram (Pachai Payaru) 1kg', price: 110, purchasePrice: 90, unit: 'Kg', initialStock: 110 },
-  { id: 'item-14', name: 'Bengal Gram (Kondakadalai) 1kg', price: 95, purchasePrice: 78, unit: 'Kg', initialStock: 100 },
-  { id: 'item-15', name: 'Sesame Oil 1L', price: 290, purchasePrice: 245, unit: 'Btl', initialStock: 60 },
+  { id: 'item-3', name: 'Kambu (Pearl Millet)', price: 1050, purchasePrice: 850, unit: 'Bag', initialStock: 200 },
+  { id: 'item-4', name: 'Ragi (Finger Millet)', price: 1150, purchasePrice: 950, unit: 'Bag', initialStock: 150 },
+  { id: 'item-5', name: 'Cholam (Sorghum)', price: 1000, purchasePrice: 800, unit: 'Bag', initialStock: 180 },
+  { id: 'item-6', name: 'Coriander Seeds (Dhaniya)', price: 1300, purchasePrice: 1050, unit: 'Bag', initialStock: 100 },
+  { id: 'item-7', name: 'Groundnut (Kadalai)', price: 2400, purchasePrice: 1960, unit: 'Bag', initialStock: 120 },
+  { id: 'item-8', name: 'Gingelly Seeds (Ellu)', price: 3800, purchasePrice: 3200, unit: 'Bag', initialStock: 80 },
+  { id: 'item-9', name: 'Toor Dal', price: 3300, purchasePrice: 2800, unit: 'Bag', initialStock: 150 },
+  { id: 'item-10', name: 'Urad Dal', price: 2800, purchasePrice: 2360, unit: 'Bag', initialStock: 120 },
+  { id: 'item-11', name: 'Moong Dal', price: 2500, purchasePrice: 2100, unit: 'Bag', initialStock: 100 },
+  { id: 'item-12', name: 'Horse Gram (Kollu)', price: 1300, purchasePrice: 1000, unit: 'Bag', initialStock: 90 },
+  { id: 'item-13', name: 'Green Gram (Pachai Payaru)', price: 2200, purchasePrice: 1800, unit: 'Bag', initialStock: 110 },
+  { id: 'item-14', name: 'Bengal Gram (Kondakadalai)', price: 1900, purchasePrice: 1560, unit: 'Bag', initialStock: 100 },
+  { id: 'item-15', name: 'Sesame Oil (Tin/Bag)', price: 2900, purchasePrice: 2450, unit: 'Bag', initialStock: 60 },
 ];
 
 const DEFAULT_CUSTOMERS = [
@@ -87,7 +87,11 @@ export const Storage = {
       const data = localStorage.getItem(STORAGE_KEYS.ITEMS);
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          // Force all items to Bag unit as requested
+          const updated = parsed.map((item) => ({ ...item, unit: 'Bag' }));
+          return updated;
+        }
       }
       Storage.saveItems(DEFAULT_ITEMS);
       return DEFAULT_ITEMS;
