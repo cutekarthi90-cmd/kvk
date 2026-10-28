@@ -58,6 +58,12 @@ export default function App() {
           setPurchases(serverData.purchases);
           Storage.savePurchases(serverData.purchases);
         }
+        if (Array.isArray(serverData.suppliers)) {
+          Storage.saveSuppliers(serverData.suppliers);
+        }
+        if (Array.isArray(serverData.supplierPayments)) {
+          Storage.saveSupplierPayments(serverData.supplierPayments);
+        }
       },
     });
 

@@ -75,6 +75,8 @@ const DEFAULT_DB = {
   sales: [],
   receipts: [],
   purchases: [],
+  suppliers: [],
+  supplierPayments: [],
   lastUpdated: new Date().toISOString(),
 };
 
@@ -154,6 +156,12 @@ wss.on('connection', (ws) => {
           db.purchases = [payload, ...(db.purchases || [])];
         } else if (action === 'DELETE_PURCHASE') {
           db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
+        } else if (action === 'SAVE_SUPPLIERS') {
+          db.suppliers = payload;
+        } else if (action === 'SAVE_SUPPLIER_PAYMENTS') {
+          db.supplierPayments = payload;
+        } else if (action === 'ADD_SUPPLIER_PAYMENT') {
+          db.supplierPayments = [payload, ...(db.supplierPayments || [])];
         }
 
         writeDB(db);
@@ -202,6 +210,12 @@ app.post('/api/action', (req, res) => {
     db.purchases = [payload, ...(db.purchases || [])];
   } else if (action === 'DELETE_PURCHASE') {
     db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
+  } else if (action === 'SAVE_SUPPLIERS') {
+    db.suppliers = payload;
+  } else if (action === 'SAVE_SUPPLIER_PAYMENTS') {
+    db.supplierPayments = payload;
+  } else if (action === 'ADD_SUPPLIER_PAYMENT') {
+    db.supplierPayments = [payload, ...(db.supplierPayments || [])];
   }
 
   writeDB(db);
