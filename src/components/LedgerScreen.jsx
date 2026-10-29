@@ -16,11 +16,15 @@ import {
   Edit2,
   Trash2,
   Truck,
-  MessageSquare
+  MessageSquare,
+  Fuel,
+  Coins
 } from 'lucide-react';
 import { generateLedgerStatementPDF, formatCurrency, formatDate } from '../services/pdfService';
 import { sharePdfToWhatsApp, sendDirectSMS } from '../services/shareService';
 import { Storage } from '../services/storage';
+import ExpensesTab from './ExpensesTab';
+import InterestTab from './InterestTab';
 
 export default function LedgerScreen({
   customers = [],
@@ -97,14 +101,20 @@ export default function LedgerScreen({
           phone: p.supplierPhone || '',
           totalPurchases: 0,
           totalPaid: 0,
+          totalDiscount: 0,
           billsCount: 0,
           bills: [],
         };
       }
-      const amt = Number(p.grandTotal) || 0;
-      map[name].totalPurchases += amt;
+      const sub = Number(p.subTotal) || Number(p.grandTotal) || 0;
+      const disc = Number(p.discount) || 0;
+      const grand = Number(p.grandTotal) || (sub - disc);
+
+      map[name].totalPurchases += sub;
+      map[name].totalDiscount += disc;
+
       if (p.paymentStatus === 'PAID') {
-        map[name].totalPaid += amt;
+        map[name].totalPaid += grand;
       }
       map[name].billsCount += 1;
       map[name].bills.push(p);
@@ -112,7 +122,7 @@ export default function LedgerScreen({
 
     return Object.values(map).map((s) => ({
       ...s,
-      netDue: s.totalPurchases - s.totalPaid,
+      netDue: Math.max(0, s.totalPurchases - s.totalPaid - s.totalDiscount),
     }));
   }, [purchases]);
 
@@ -551,40 +561,78 @@ export default function LedgerScreen({
       ) : (
         /* MASTER DIRECTORY: CUSTOMERS VS SUPPLIERS TAB */
         <div className="p-3 space-y-3">
-          {/* Top Switcher: Customer Ledger vs Supplier Ledger */}
-          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex gap-1">
+          {/* Top Switcher: 4 Tabs - Customer, Supplier, Expenses, Interest */}
+          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs grid grid-cols-4 gap-1">
             <button
               onClick={() => {
                 setActiveLedgerTab('customers');
                 setSearch('');
               }}
-              className={`flex-1 py-2 text-xs font-extrabold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2 text-[10px] sm:text-xs font-black rounded-lg transition-all flex flex-col items-center justify-center gap-1 ${
                 activeLedgerTab === 'customers'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <User className="w-3.5 h-3.5" />
-              <span>Customer Ledger ({customers.length})</span>
+              <span className="truncate">Customers ({customers.length})</span>
             </button>
             <button
               onClick={() => {
                 setActiveLedgerTab('suppliers');
                 setSearch('');
               }}
-              className={`flex-1 py-2 text-xs font-extrabold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-2 text-[10px] sm:text-xs font-black rounded-lg transition-all flex flex-col items-center justify-center gap-1 ${
                 activeLedgerTab === 'suppliers'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
               <Truck className="w-3.5 h-3.5" />
-              <span>Supplier Ledger ({supplierList.length})</span>
+              <span className="truncate">Suppliers ({supplierList.length})</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveLedgerTab('expenses');
+                setSearch('');
+              }}
+              className={`py-2 text-[10px] sm:text-xs font-black rounded-lg transition-all flex flex-col items-center justify-center gap-1 ${
+                activeLedgerTab === 'expenses'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Fuel className="w-3.5 h-3.5 text-amber-500" />
+              <span className="truncate">Expenses (செலவு)</span>
+            </button>
+            <button
+              onClick={() => {
+                setActiveLedgerTab('interest');
+                setSearch('');
+              }}
+              className={`py-2 text-[10px] sm:text-xs font-black rounded-lg transition-all flex flex-col items-center justify-center gap-1 ${
+                activeLedgerTab === 'interest'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Coins className="w-3.5 h-3.5 text-yellow-500" />
+              <span className="truncate">Interest (வட்டி)</span>
             </button>
           </div>
 
-          {activeLedgerTab === 'customers' ? (
-            /* TAB 1: CUSTOMERS DIRECTORY */
+          {/* TAB 3: EXPENSES (Diesel, Kooli, Mandi Expenses) */}
+          {activeLedgerTab === 'expenses' && (
+            <ExpensesTab shop={shop} />
+          )}
+
+          {/* TAB 4: INTEREST LOANS (வட்டி கணக்கு) */}
+          {activeLedgerTab === 'interest' && (
+            <InterestTab shop={shop} />
+          )}
+
+          {/* TAB 1: CUSTOMERS DIRECTORY */}
+          {activeLedgerTab === 'customers' && (
             <>
               {/* Market Outstanding Due Banner */}
               <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-4 text-white shadow-md">
@@ -681,8 +729,10 @@ export default function LedgerScreen({
                 )}
               </div>
             </>
-          ) : (
-            /* TAB 2: SUPPLIERS DIRECTORY */
+          )}
+
+          {/* TAB 2: SUPPLIERS DIRECTORY */}
+          {activeLedgerTab === 'suppliers' && (
             <>
               {/* Supplier Total Payable Banner */}
               <div className="bg-gradient-to-r from-amber-700 to-orange-800 rounded-2xl p-4 text-white shadow-md">

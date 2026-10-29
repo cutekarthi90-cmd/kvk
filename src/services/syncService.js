@@ -67,6 +67,18 @@ export const SyncService = {
         console.log('Connected to Live Sync WebSocket:', wsUrl);
         if (statusCallback) statusCallback('connected');
         if (reconnectTimer) clearTimeout(reconnectTimer);
+
+        // Notify server of active client data so waking server preserves local bills
+        try {
+          const backup = Storage.exportBackupData();
+          ws.send(JSON.stringify({
+            type: 'SYNC_ACTION',
+            action: 'CLIENT_SYNC_STATE',
+            payload: backup,
+          }));
+        } catch (e) {
+          console.warn('Error sending initial client sync state:', e);
+        }
       };
 
       ws.onmessage = (event) => {

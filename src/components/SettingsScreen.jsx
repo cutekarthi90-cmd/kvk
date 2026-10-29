@@ -11,11 +11,25 @@ import {
   Radio,
   RefreshCw,
   Cloud,
-  Check
+  Check,
+  FileSpreadsheet,
+  Share2,
+  Calendar,
+  ShieldCheck,
+  ShieldAlert,
+  Percent
 } from 'lucide-react';
-import { Storage } from '../services/storage';
+import { Storage, getFinancialYear } from '../services/storage';
 import { getServerUrl, setServerUrl, SyncService } from '../services/syncService';
 import { getSavedFirebaseConfig, saveFirebaseConfig, initFirebase } from '../services/firebaseService';
+import {
+  getAvailableMonths,
+  getMonthlyGSTData,
+  exportMonthlyGSTExcel,
+  getAuditorWhatsAppText
+} from '../services/gstReportService';
+import { openDirectWhatsApp } from '../services/shareService';
+import { formatCurrency } from '../services/pdfService';
 
 export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStatus }) {
   const [form, setForm] = useState({ ...shop });
@@ -30,6 +44,28 @@ export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStat
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
   };
+
+  const sales = Storage.getSales();
+  const purchases = Storage.getPurchases();
+  const availableMonths = getAvailableMonths(sales, purchases);
+  const [selectedMonth, setSelectedMonth] = useState(() => availableMonths[0] || '2026-10');
+  const [auditorPhone, setAuditorPhone] = useState('9443995160');
+
+  const gstData = getMonthlyGSTData(selectedMonth, sales, purchases);
+
+  const handleDownloadGSTExcel = () => {
+    exportMonthlyGSTExcel(gstData, shop);
+    showToast(`Monthly GST Excel for ${gstData.monthLabel} downloaded!`);
+  };
+
+  const handleShareAuditorWhatsApp = () => {
+    const text = getAuditorWhatsAppText(gstData, shop);
+    exportMonthlyGSTExcel(gstData, shop);
+    openDirectWhatsApp(auditorPhone, text);
+    showToast('Opening WhatsApp to send GST Report to Auditor...');
+  };
+
+  const currentFY = getFinancialYear();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -110,6 +146,120 @@ export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStat
           <span>{toast}</span>
         </div>
       )}
+
+      {/* AUDITOR OFFICE GST MONTHLY REPORT GENERATOR (Requested by user) */}
+      <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white rounded-2xl p-4 shadow-md space-y-3.5 border border-emerald-700/50">
+        <div className="flex items-center justify-between border-b border-emerald-700/60 pb-2">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
+            <div>
+              <h3 className="font-black text-sm">Auditor Office GST Report</h3>
+              <p className="text-[11px] text-emerald-200">
+                Monthly Excel (.csv) format for Auditor GSTR filing
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold">
+            EXCEL / GST
+          </span>
+        </div>
+
+        {/* Month Picker */}
+        <div className="flex items-center justify-between gap-2 bg-white/10 p-2.5 rounded-xl">
+          <label className="text-xs font-bold text-emerald-200 flex items-center gap-1.5">
+            <Calendar className="w-4 h-4 text-emerald-400" />
+            Select Month:
+          </label>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-slate-900 border border-emerald-400/50 rounded-lg px-2.5 py-1 text-xs font-black text-white focus:outline-none"
+          >
+            {availableMonths.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Monthly Summary Figures */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+            <span className="text-[10px] text-blue-300 font-bold uppercase block">
+              1. Sales (Outward)
+            </span>
+            <div className="font-black text-sm text-white mt-0.5">
+              {formatCurrency(gstData.totalSalesAmount)}
+            </div>
+            <span className="text-[10px] text-slate-400">
+              {gstData.sales.length} Bills • {gstData.totalSalesBags} Bags
+            </span>
+          </div>
+
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+            <span className="text-[10px] text-emerald-300 font-bold uppercase block">
+              2. GST Purchases
+            </span>
+            <div className="font-black text-sm text-white mt-0.5">
+              {formatCurrency(gstData.totalGstPurchaseAmount)}
+            </div>
+            <span className="text-[10px] text-slate-400">
+              {gstData.gstPurchases.length} Bills • {gstData.totalGstPurchaseBags} Bags
+            </span>
+          </div>
+        </div>
+
+        {/* Notice of Q Purchases Excluded */}
+        <div className="p-2 bg-purple-950/70 rounded-xl border border-purple-600/40 text-[11px] flex items-center justify-between text-purple-200">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Q-Purchases Excluded from Auditor:</span>
+          </div>
+          <span className="font-black text-purple-300">
+            {gstData.excludedQPurchases.length} Bills ({formatCurrency(gstData.totalQPurchaseAmount)})
+          </span>
+        </div>
+
+        {/* Action Buttons: Download Excel & Share to Auditor on WhatsApp */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleDownloadGSTExcel}
+            className="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Download Excel</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleShareAuditorWhatsApp}
+            className="py-2.5 bg-white hover:bg-slate-100 text-slate-900 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+          >
+            <Share2 className="w-4 h-4 text-emerald-600" />
+            <span>WhatsApp Auditor</span>
+          </button>
+        </div>
+      </div>
+
+      {/* FINANCIAL YEAR AUTO-RESTART CARD (Requested by user) */}
+      <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-blue-600" />
+            <h4 className="text-xs font-black text-slate-800 uppercase">
+              Financial Year System (வருடாந்திர கணக்கு)
+            </h4>
+          </div>
+          <span className="text-xs font-black bg-blue-50 text-blue-700 px-2 py-0.5 rounded-md border border-blue-200">
+            FY {currentFY}
+          </span>
+        </div>
+        <p className="text-[11px] text-slate-500 leading-relaxed">
+          Indian Mandi Financial Year (April 1 to March 31) automatic-a calculate aagum. Oru Financial Year mudinju adutha year (April 1st) aarambikkum pothu, <strong>Bill No. தானாக 1-il irunthu marupadiyum thodangum.</strong>
+        </p>
+      </div>
 
       {/* MULTI-DEVICE 4-5 PHONES LIVE SYNC SECTION */}
       <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white rounded-xl p-4 shadow-md space-y-3">

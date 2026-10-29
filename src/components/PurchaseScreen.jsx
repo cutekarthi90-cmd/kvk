@@ -13,7 +13,11 @@ import {
   ArrowRight,
   TrendingUp,
   AlertTriangle,
-  UserPlus
+  UserPlus,
+  Tag,
+  ShieldCheck,
+  ShieldAlert,
+  Percent
 } from 'lucide-react';
 import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
@@ -25,11 +29,16 @@ export default function PurchaseScreen({
   onDeletePurchase,
 }) {
   const [activeTab, setActiveTab] = useState('create'); // 'create' | 'history'
+  
+  // Q-Purchase Toggle (Regular GST vs Q Purchase)
+  const [isQPurchase, setIsQPurchase] = useState(false);
+
   const [supplierName, setSupplierName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
   const [cart, setCart] = useState([]);
+  const [discount, setDiscount] = useState(''); // Discount on Payment (தள்ளுபடி)
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [notes, setNotes] = useState('');
   const [historySearch, setHistorySearch] = useState('');
@@ -87,16 +96,24 @@ export default function PurchaseScreen({
     setCart((prev) => prev.filter((i) => i.id !== itemId));
   };
 
-  const grandTotal = useMemo(() => {
+  const subTotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
   }, [cart]);
+
+  const numDiscount = Number(discount) || 0;
+
+  const grandTotal = useMemo(() => {
+    return Math.max(0, subTotal - numDiscount);
+  }, [subTotal, numDiscount]);
 
   const resetForm = () => {
     setCart([]);
     setSupplierName('');
     setSupplierPhone('');
     setCustomBillNo('');
+    setDiscount('');
     setNotes('');
+    setIsQPurchase(false);
     setDate(new Date().toISOString().split('T')[0]);
     setIsAddingNewSupplier(false);
   };
@@ -146,12 +163,16 @@ export default function PurchaseScreen({
       date,
       supplierName: cleanSupName,
       supplierPhone: cleanSupPhone,
+      isQPurchase,
+      billType: isQPurchase ? 'Q_PURCHASE' : 'GST_BILL',
       items: cart.map((i) => ({
         ...i,
         qty: Math.max(1, Number(i.qty) || 1),
         price: Math.max(0, Number(i.price) || 0),
         unit: 'Bag',
       })),
+      subTotal,
+      discount: numDiscount,
       grandTotal,
       paymentStatus,
       notes: notes.trim(),
@@ -159,7 +180,11 @@ export default function PurchaseScreen({
     };
 
     onSavePurchase(newPurchase);
-    showToast(`Purchase Bill No. ${billNo} saved! Stock updated.`);
+    showToast(
+      isQPurchase
+        ? `Q Purchase Bill #${billNo} saved! Stock updated (Excluded from Auditor GST).`
+        : `Regular Purchase Bill #${billNo} saved! Stock & GST updated.`
+    );
     resetForm();
     setActiveTab('history');
   };
@@ -183,6 +208,45 @@ export default function PurchaseScreen({
     });
   }, [purchases, historySearch]);
 
+  // Overall Purchase Summary metrics (including Discount on Payment column)
+  const purchaseSummary = useMemo(() => {
+    let grossTotal = 0;
+    let totalDiscount = 0;
+    let netTotal = 0;
+    let totalBags = 0;
+    let qPurchaseTotal = 0;
+    let qPurchaseCount = 0;
+
+    purchases.forEach((p) => {
+      const sub = Number(p.subTotal) || Number(p.grandTotal) || 0;
+      const disc = Number(p.discount) || 0;
+      const grand = Number(p.grandTotal) || (sub - disc);
+
+      grossTotal += sub;
+      totalDiscount += disc;
+      netTotal += grand;
+
+      (p.items || []).forEach((i) => {
+        totalBags += Number(i.qty) || 0;
+      });
+
+      if (p.isQPurchase || p.billType === 'Q_PURCHASE') {
+        qPurchaseTotal += grand;
+        qPurchaseCount += 1;
+      }
+    });
+
+    return {
+      grossTotal,
+      totalDiscount,
+      netTotal,
+      totalBags,
+      qPurchaseTotal,
+      qPurchaseCount,
+      regularCount: purchases.length - qPurchaseCount,
+    };
+  }, [purchases]);
+
   return (
     <div className="pb-24 max-w-md mx-auto">
       {/* Toast Notification */}
@@ -193,48 +257,86 @@ export default function PurchaseScreen({
         </div>
       )}
 
-      {/* Navigation Sub-Tabs: New Purchase vs Past Purchases (Live stock moved to Stock tab!) */}
+      {/* Navigation Sub-Tabs */}
       <div className="p-3 bg-white border-b border-slate-200 flex gap-2">
         <button
           onClick={() => setActiveTab('create')}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'create'
               ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
-          <Truck className="w-3.5 h-3.5" />
-          + Purchase Bill Entry
+          <Plus className="w-3.5 h-3.5" />
+          <span>+ Purchase Bill Entry</span>
         </button>
         <button
           onClick={() => setActiveTab('history')}
           className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
             activeTab === 'history'
               ? 'bg-blue-600 text-white shadow-xs'
-              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          Past Purchases ({purchases.length})
+          <span>Past Purchases ({purchases.length})</span>
         </button>
       </div>
 
       {/* VIEW: PURCHASE ENTRY FORM */}
       {activeTab === 'create' && (
         <form onSubmit={handleSavePurchaseBill} className="p-3 space-y-3">
+          {/* Bill Type Toggle: Regular GST Purchase vs Q Purchase */}
+          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex gap-1">
+            <button
+              type="button"
+              onClick={() => setIsQPurchase(false)}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                !isQPurchase
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>🏢 Regular GST Bill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsQPurchase(true)}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                isQPurchase
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-purple-700 hover:bg-purple-50'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>📦 Q Purchase (Quotation)</span>
+            </button>
+          </div>
+
+          {/* Q Purchase Notice */}
+          {isQPurchase && (
+            <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 flex items-start gap-2 text-xs text-purple-900">
+              <span className="font-bold shrink-0">📦 Q Purchase Note:</span>
+              <span>
+                Grain stock-la bags add aagum, supplier ledger-lum varum. <strong>Auditor GST Report-la ithu pogathu (Excludes strictly).</strong>
+              </span>
+            </div>
+          )}
+
           {/* Top Bar: Bill No & Date */}
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Purchase Bill No.
+                {isQPurchase ? 'Q-Purchase Ref No.' : 'Purchase Bill No.'}
               </span>
               <div className="flex items-center gap-1 mt-0.5">
-                <span className="text-xs font-bold text-slate-400">#</span>
+                <span className="text-xs font-bold text-slate-400">{isQPurchase ? 'Q-' : '#'}</span>
                 <input
                   type="text"
                   value={billNo}
                   onChange={(e) => setCustomBillNo(e.target.value)}
-                  className="w-20 bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-black text-slate-800 text-sm focus:outline-none focus:bg-white"
+                  className="w-24 bg-slate-50 border border-slate-300 rounded px-1.5 py-0.5 font-black text-slate-800 text-sm focus:outline-none focus:bg-white"
                   title="Supplier Invoice / Bill No"
                 />
               </div>
@@ -252,7 +354,7 @@ export default function PurchaseScreen({
             </div>
           </div>
 
-          {/* Supplier Info Card with Selection / Add New Option */}
+          {/* Supplier Info Card */}
           <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1">
@@ -327,7 +429,7 @@ export default function PurchaseScreen({
             )}
           </div>
 
-          {/* TAP PAD TO ADD ITEMS (BIG LETTERS FOR EASY TOUCH!) */}
+          {/* TAP PAD TO ADD ITEMS */}
           <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 uppercase">
@@ -338,34 +440,30 @@ export default function PurchaseScreen({
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1 bg-slate-50 rounded-xl border border-slate-100">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {items.map((item) => {
-                const inCart = cart.find((c) => c.id === item.id);
+                const inCart = cart.find((i) => i.id === item.id);
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => handleAddItem(item)}
-                    className={`text-left p-3 rounded-xl border transition-all flex flex-col justify-between gap-1 shadow-xs active:scale-95 ${
+                    className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex flex-col justify-between min-h-[75px] ${
                       inCart
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-slate-800 border-slate-200 hover:border-blue-400'
+                        ? 'border-blue-600 bg-blue-50/50 shadow-xs ring-1 ring-blue-500'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
                     }`}
                   >
-                    <div className="font-bold text-sm leading-tight truncate w-full">
+                    <div className="font-extrabold text-slate-900 text-xs line-clamp-2 leading-snug">
                       {item.name}
                     </div>
-                    <div className="flex items-center justify-between mt-1 w-full text-xs">
-                      <span className={inCart ? 'text-blue-100 font-medium' : 'text-slate-500'}>
-                        {item.unit || 'Bag'}
+                    <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                      <span className="text-xs font-black text-blue-600">
+                        ₹{item.purchasePrice || Math.round(item.price * 0.85)}
                       </span>
-                      {inCart ? (
-                        <span className="bg-white text-blue-600 px-2 py-0.5 rounded-full text-xs font-black">
+                      {inCart && (
+                        <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[10px] font-black rounded-full">
                           {inCart.qty} Bag
-                        </span>
-                      ) : (
-                        <span className="text-emerald-700 font-extrabold text-xs">
-                          + Add
                         </span>
                       )}
                     </div>
@@ -375,51 +473,40 @@ export default function PurchaseScreen({
             </div>
           </div>
 
-          {/* Cart Table (Items Added) */}
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+          {/* Cart Table with Editable Qty & Rate */}
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 uppercase">
                 Items in Purchase Bill ({cart.length})
               </span>
-              {cart.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setCart([])}
-                  className="text-xs text-red-500 hover:underline"
-                >
-                  Clear All
-                </button>
-              )}
+              <span className="text-[11px] text-slate-400">Unit: 50kg Bag</span>
             </div>
 
             {cart.length === 0 ? (
-              <div className="text-center py-6 border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                No items added. Tap any item above to add to this purchase bill.
+              <div className="py-8 text-center text-slate-400 text-xs">
+                No items added yet. Tap items above to add.
               </div>
             ) : (
               <div className="space-y-2">
-                {cart.map((item, idx) => (
+                {cart.map((item) => (
                   <div
                     key={item.id}
                     className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between gap-2"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold text-slate-900 truncate">
-                        {idx + 1}. {item.name}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black text-slate-900 text-xs truncate">
+                        {item.name}
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
-                        <span>Cost: ₹</span>
+                      <div className="flex items-center gap-1.5 mt-1 text-xs text-slate-500">
+                        <span>₹</span>
                         <input
                           type="number"
                           value={item.price}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
-                          onBlur={() => {
-                            handleUpdatePrice(item.id, Math.max(0, Number(item.price) || 0));
-                          }}
                           className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-extrabold focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
-                        <span>/ {item.unit || 'Bag'}</span>
+                        <span>/ Bag</span>
                       </div>
                     </div>
 
@@ -441,13 +528,6 @@ export default function PurchaseScreen({
                         value={item.qty}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => handleUpdateQty(item.id, e.target.value)}
-                        onBlur={() => {
-                          if (!item.qty || Number(item.qty) <= 0) {
-                            handleUpdateQty(item.id, 1);
-                          } else {
-                            handleUpdateQty(item.id, parseInt(item.qty, 10));
-                          }
-                        }}
                         className="w-14 py-1 text-center font-black text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
                       />
                       <button
@@ -480,8 +560,44 @@ export default function PurchaseScreen({
             )}
           </div>
 
-          {/* Payment & Grand Total Card */}
+          {/* Discount on Payment & Grand Total Card */}
           <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+            {/* Discount on Payment Field */}
+            <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <Percent className="w-3.5 h-3.5 text-amber-700" />
+                  Discount on Payment (தள்ளுபடி / கழிவு ₹):
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={discount}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    className="w-28 pl-6 pr-2 py-1 bg-white border-2 border-amber-300 focus:border-amber-600 rounded-lg text-sm font-black text-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <span className="text-[10px] text-amber-800 block">
+                Cash discount / Supplier concession on bill amount
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <span>Subtotal (மண்டியில் இறக்கிய மதிப்பு):</span>
+              <span className="font-bold text-slate-800">₹{subTotal.toFixed(2)}</span>
+            </div>
+
+            {numDiscount > 0 && (
+              <div className="flex items-center justify-between text-xs text-emerald-700">
+                <span>Discount on Payment (தள்ளுபடி):</span>
+                <span className="font-bold">-₹{numDiscount.toFixed(2)}</span>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-600">Payment Status:</span>
               <div className="flex gap-2">
@@ -494,7 +610,7 @@ export default function PurchaseScreen({
                       : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  PAID
+                  PAID (ரொக்கம்)
                 </button>
                 <button
                   type="button"
@@ -511,7 +627,7 @@ export default function PurchaseScreen({
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-              <span className="text-sm font-bold text-slate-800">Grand Total:</span>
+              <span className="text-sm font-bold text-slate-800">Net Payable Total:</span>
               <span className="text-2xl font-black text-blue-600">
                 {formatCurrency(grandTotal)}
               </span>
@@ -519,18 +635,72 @@ export default function PurchaseScreen({
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
+              className={`w-full py-3.5 font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all text-white ${
+                isQPurchase
+                  ? 'bg-purple-700 hover:bg-purple-800'
+                  : 'bg-blue-600 hover:bg-blue-700'
+              }`}
             >
               <CheckCircle className="w-5 h-5" />
-              <span>SAVE PURCHASE & UPDATE STOCK</span>
+              <span>
+                {isQPurchase
+                  ? 'SAVE Q-PURCHASE & UPDATE STOCK'
+                  : 'SAVE PURCHASE & UPDATE STOCK'}
+              </span>
             </button>
           </div>
         </form>
       )}
 
-      {/* VIEW: PAST PURCHASES HISTORY */}
+      {/* VIEW: PAST PURCHASES HISTORY & SUMMARY */}
       {activeTab === 'history' && (
         <div className="p-3 space-y-3">
+          {/* PURCHASE SUMMARY CARD (Requested: Discount on payment column in summary!) */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-md space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-700 pb-2">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Purchase Summary (கொள்முதல் விவரம்)
+                </span>
+                <div className="text-2xl font-black text-blue-400 mt-0.5">
+                  {formatCurrency(purchaseSummary.netTotal)}
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Total Bags
+                </span>
+                <span className="text-lg font-black text-white">
+                  {purchaseSummary.totalBags} Bags
+                </span>
+              </div>
+            </div>
+
+            {/* Metrics Grid with Discount on Payment column */}
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                <span className="text-[10px] text-slate-400 block font-bold">Gross Value</span>
+                <span className="font-bold text-white text-xs">{formatCurrency(purchaseSummary.grossTotal)}</span>
+              </div>
+
+              <div className="bg-emerald-950/60 p-2 rounded-xl border border-emerald-700/60">
+                <span className="text-[10px] text-emerald-400 block font-bold">Discount on Pay</span>
+                <span className="font-black text-emerald-300 text-xs">
+                  {formatCurrency(purchaseSummary.totalDiscount)}
+                </span>
+              </div>
+
+              <div className="bg-purple-950/60 p-2 rounded-xl border border-purple-700/60">
+                <span className="text-[10px] text-purple-300 block font-bold">Q Purchases</span>
+                <span className="font-black text-purple-200 text-xs">
+                  {formatCurrency(purchaseSummary.qPurchaseTotal)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search bar */}
           <div className="relative">
             <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
             <input
@@ -542,65 +712,100 @@ export default function PurchaseScreen({
             />
           </div>
 
+          {/* Bills List */}
           <div className="space-y-2">
             {sortedPurchases.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
                 No purchases found.
               </div>
             ) : (
-              sortedPurchases.map((p) => (
-                <div
-                  key={p.id}
-                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-900 text-base">
-                          Bill #{p.billNo}
-                        </span>
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                            p.paymentStatus === 'PAID'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {p.paymentStatus}
-                        </span>
+              sortedPurchases.map((p) => {
+                const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
+                const disc = Number(p.discount) || 0;
+
+                return (
+                  <div
+                    key={p.id}
+                    className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-black text-slate-900 text-base">
+                            Bill #{p.billNo}
+                          </span>
+
+                          {/* Q-Purchase vs Regular Badge */}
+                          {isQ ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-black uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                              📦 Q Purchase
+                            </span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase bg-blue-100 text-blue-800">
+                              GST Bill
+                            </span>
+                          )}
+
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
+                              p.paymentStatus === 'PAID'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {p.paymentStatus}
+                          </span>
+                        </div>
+
+                        <div className="text-xs font-bold text-slate-700 mt-1">
+                          {p.supplierName} {p.supplierPhone ? `• ${p.supplierPhone}` : ''}
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {(p.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
+                        </div>
+
+                        {/* Discount on Payment Badge */}
+                        {disc > 0 && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <Tag className="w-3 h-3 text-emerald-600" />
+                            <span>Discount on Pay: -₹{disc.toFixed(2)}</span>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs font-bold text-slate-700 mt-0.5">
-                        {p.supplierName} {p.supplierPhone ? `• ${p.supplierPhone}` : ''}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {(p.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
+
+                      <div className="text-right shrink-0">
+                        <div className="font-black text-blue-600 text-base">
+                          {formatCurrency(p.grandTotal)}
+                        </div>
+                        {disc > 0 && (
+                          <span className="text-[10px] text-slate-400 line-through block">
+                            ₹{(Number(p.subTotal) || (Number(p.grandTotal) + disc)).toFixed(2)}
+                          </span>
+                        )}
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                          {formatDate(p.date)}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="text-right shrink-0">
-                      <div className="font-black text-blue-600 text-base">
-                        {formatCurrency(p.grandTotal)}
-                      </div>
-                      <div className="text-[11px] text-slate-400 font-medium">{formatDate(p.date)}</div>
+                    <div className="border-t border-slate-100 pt-2 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirm(`Delete Purchase Bill #${p.billNo}? Stock will be adjusted back.`)) {
+                            onDeletePurchase(p.id);
+                          }
+                        }}
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </div>
-
-                  <div className="border-t border-slate-100 pt-2 flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm(`Delete Purchase Bill #${p.billNo}? Stock will be adjusted back.`)) {
-                          onDeletePurchase(p.id);
-                        }
-                      }}
-                      className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

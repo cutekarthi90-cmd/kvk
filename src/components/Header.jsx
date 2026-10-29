@@ -113,19 +113,19 @@ export default function Header({ shop, activeTab, onOpenAddCustomer, syncStatus 
 
                 {/* Real-time Multi-Device Sync Indicator */}
                 {syncStatus === 'connected' ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                  <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-300 shadow-2xs">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                     LIVE SYNC
                   </span>
                 ) : syncStatus === 'connecting' ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
-                    Connecting...
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200" title="Device is 100% ready to bill. Cloud waking up in background.">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-ping"></span>
+                    DEVICE READY ⚡
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">
-                    <WifiOff className="w-2.5 h-2.5" />
-                    Offline
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    <Check className="w-2.5 h-2.5 text-emerald-600" />
+                    LOCAL READY ⚡
                   </span>
                 )}
               </div>

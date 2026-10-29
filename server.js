@@ -77,6 +77,10 @@ const DEFAULT_DB = {
   purchases: [],
   suppliers: [],
   supplierPayments: [],
+  salesReturns: [],
+  expenses: [],
+  interestLoans: [],
+  interestPayments: [],
   lastUpdated: new Date().toISOString(),
 };
 
@@ -162,6 +166,37 @@ wss.on('connection', (ws) => {
           db.supplierPayments = payload;
         } else if (action === 'ADD_SUPPLIER_PAYMENT') {
           db.supplierPayments = [payload, ...(db.supplierPayments || [])];
+        } else if (action === 'SAVE_SALES_RETURN') {
+          db.salesReturns = [payload, ...(db.salesReturns || [])];
+        } else if (action === 'DELETE_SALES_RETURN') {
+          db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
+        } else if (action === 'SAVE_EXPENSE') {
+          db.expenses = [payload, ...(db.expenses || [])];
+        } else if (action === 'DELETE_EXPENSE') {
+          db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
+        } else if (action === 'SAVE_INTEREST_LOAN') {
+          db.interestLoans = [payload, ...(db.interestLoans || [])];
+        } else if (action === 'DELETE_INTEREST_LOAN') {
+          db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
+        } else if (action === 'SAVE_INTEREST_PAYMENT') {
+          db.interestPayments = [payload, ...(db.interestPayments || [])];
+        } else if (action === 'CLIENT_SYNC_STATE') {
+          try {
+            const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
+            if (Array.isArray(clientData.sales) && clientData.sales.length >= (db.sales || []).length) db.sales = clientData.sales;
+            if (Array.isArray(clientData.purchases) && clientData.purchases.length >= (db.purchases || []).length) db.purchases = clientData.purchases;
+            if (Array.isArray(clientData.receipts) && clientData.receipts.length >= (db.receipts || []).length) db.receipts = clientData.receipts;
+            if (Array.isArray(clientData.customers)) db.customers = clientData.customers;
+            if (Array.isArray(clientData.items)) db.items = clientData.items;
+            if (Array.isArray(clientData.suppliers)) db.suppliers = clientData.suppliers;
+            if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = clientData.supplierPayments;
+            if (Array.isArray(clientData.salesReturns)) db.salesReturns = clientData.salesReturns;
+            if (Array.isArray(clientData.expenses)) db.expenses = clientData.expenses;
+            if (Array.isArray(clientData.interestLoans)) db.interestLoans = clientData.interestLoans;
+            if (Array.isArray(clientData.interestPayments)) db.interestPayments = clientData.interestPayments;
+          } catch (e) {
+            console.error('Error syncing client state:', e);
+          }
         }
 
         writeDB(db);
@@ -216,6 +251,37 @@ app.post('/api/action', (req, res) => {
     db.supplierPayments = payload;
   } else if (action === 'ADD_SUPPLIER_PAYMENT') {
     db.supplierPayments = [payload, ...(db.supplierPayments || [])];
+  } else if (action === 'SAVE_SALES_RETURN') {
+    db.salesReturns = [payload, ...(db.salesReturns || [])];
+  } else if (action === 'DELETE_SALES_RETURN') {
+    db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
+  } else if (action === 'SAVE_EXPENSE') {
+    db.expenses = [payload, ...(db.expenses || [])];
+  } else if (action === 'DELETE_EXPENSE') {
+    db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
+  } else if (action === 'SAVE_INTEREST_LOAN') {
+    db.interestLoans = [payload, ...(db.interestLoans || [])];
+  } else if (action === 'DELETE_INTEREST_LOAN') {
+    db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
+  } else if (action === 'SAVE_INTEREST_PAYMENT') {
+    db.interestPayments = [payload, ...(db.interestPayments || [])];
+  } else if (action === 'CLIENT_SYNC_STATE') {
+    try {
+      const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
+      if (Array.isArray(clientData.sales) && clientData.sales.length >= (db.sales || []).length) db.sales = clientData.sales;
+      if (Array.isArray(clientData.purchases) && clientData.purchases.length >= (db.purchases || []).length) db.purchases = clientData.purchases;
+      if (Array.isArray(clientData.receipts) && clientData.receipts.length >= (db.receipts || []).length) db.receipts = clientData.receipts;
+      if (Array.isArray(clientData.customers)) db.customers = clientData.customers;
+      if (Array.isArray(clientData.items)) db.items = clientData.items;
+      if (Array.isArray(clientData.suppliers)) db.suppliers = clientData.suppliers;
+      if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = clientData.supplierPayments;
+      if (Array.isArray(clientData.salesReturns)) db.salesReturns = clientData.salesReturns;
+      if (Array.isArray(clientData.expenses)) db.expenses = clientData.expenses;
+      if (Array.isArray(clientData.interestLoans)) db.interestLoans = clientData.interestLoans;
+      if (Array.isArray(clientData.interestPayments)) db.interestPayments = clientData.interestPayments;
+    } catch (e) {
+      console.error('Error syncing client state:', e);
+    }
   }
 
   writeDB(db);
@@ -246,4 +312,12 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  Phone & PC URL: http://192.168.1.23:${PORT}`);
   console.log(`  Local PC URL:   http://localhost:${PORT}`);
   console.log(`====================================================`);
+
+  // Auto-ping to prevent Render sleep during active usage
+  const renderUrl = process.env.RENDER_EXTERNAL_URL || 'https://kvk-1.onrender.com';
+  if (renderUrl.startsWith('https')) {
+    setInterval(() => {
+      fetch(`${renderUrl}/api/state`).catch(() => {});
+    }, 12 * 60 * 1000); // Ping every 12 mins
+  }
 });

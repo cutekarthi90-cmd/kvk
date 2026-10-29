@@ -14,6 +14,7 @@ import {
   TrendingUp
 } from 'lucide-react';
 import { formatCurrency } from '../services/pdfService';
+import { Storage } from '../services/storage';
 
 export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems }) {
   const [editingItem, setEditingItem] = useState(null);
@@ -144,6 +145,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
 
   const handleDelete = (id) => {
     if (confirm('Are you sure you want to delete this item?')) {
+      Storage.recordDeletedId(id);
       const updated = items.filter((i) => i.id !== id);
       onSaveItems(updated);
     }

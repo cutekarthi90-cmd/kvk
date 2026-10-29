@@ -16,11 +16,12 @@ import {
   MessageSquare,
   Send,
   X,
-  Package
+  Package,
+  RotateCcw
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';
-import { Storage } from '../services/storage';
+import { Storage, getFinancialYear } from '../services/storage';
 
 export default function SaleScreen({
   customers,
@@ -55,16 +56,42 @@ export default function SaleScreen({
     }
   }, [preselectedCustomerId]);
 
-  // Bill number starting from 1 (1, 2, 3...) - STRICTLY AUTO-INCREMENTING
+  // Financial Year Filter & Selection
+  const [selectedFY, setSelectedFY] = useState('ALL');
+
+  // Sales Return states
+  const [salesReturns, setSalesReturns] = useState(() => Storage.getSalesReturns());
+  const [returnCustomerId, setReturnCustomerId] = useState('');
+  const [returnCustomerSearch, setReturnCustomerSearch] = useState('');
+  const [returnDate, setReturnDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [returnCart, setReturnCart] = useState([]);
+  const [returnReason, setReturnReason] = useState('Quality issue (தரம் சரியில்லை)');
+  const [returnNotes, setReturnNotes] = useState('');
+
+  // Bill number auto-incrementing PER FINANCIAL YEAR (restarts from 1 when FY changes!)
   const autoInvoiceNo = useMemo(() => {
-    return String(sales.length + 1);
-  }, [sales.length]);
+    return String(Storage.getNextInvoiceNo(sales, date));
+  }, [sales, date]);
 
   const nextInvoiceNo = autoInvoiceNo;
+
+  const currentFY = getFinancialYear(date);
+
+  const availableFYs = useMemo(() => {
+    const set = new Set([getFinancialYear()]);
+    sales.forEach((s) => {
+      if (s.date) set.add(getFinancialYear(s.date));
+    });
+    return Array.from(set).sort().reverse();
+  }, [sales]);
 
   const selectedCustomer = useMemo(() => {
     return customers.find((c) => c.id === selectedCustomerId) || null;
   }, [customers, selectedCustomerId]);
+
+  const selectedReturnCustomer = useMemo(() => {
+    return customers.find((c) => c.id === returnCustomerId) || null;
+  }, [customers, returnCustomerId]);
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return customers;
@@ -74,6 +101,14 @@ export default function SaleScreen({
     );
   }, [customers, customerSearch]);
 
+  const filteredReturnCustomers = useMemo(() => {
+    if (!returnCustomerSearch.trim()) return customers;
+    const q = returnCustomerSearch.toLowerCase();
+    return customers.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.phone.includes(q)
+    );
+  }, [customers, returnCustomerSearch]);
+
   const filteredItems = useMemo(() => {
     if (!itemSearch.trim()) return items;
     const q = itemSearch.toLowerCase();
@@ -81,15 +116,18 @@ export default function SaleScreen({
   }, [items, itemSearch]);
 
   const filteredSalesHistory = useMemo(() => {
-    if (!historySearch.trim()) return sales;
-    const q = historySearch.toLowerCase();
-    return sales.filter(
-      (s) =>
+    return sales.filter((s) => {
+      const matchFY = selectedFY === 'ALL' || getFinancialYear(s.date) === selectedFY;
+      if (!matchFY) return false;
+      if (!historySearch.trim()) return true;
+      const q = historySearch.toLowerCase();
+      return (
         String(s.invoiceNo).toLowerCase().includes(q) ||
         (s.customerName && s.customerName.toLowerCase().includes(q)) ||
         (s.customerPhone && s.customerPhone.includes(q))
-    );
-  }, [sales, historySearch]);
+      );
+    });
+  }, [sales, historySearch, selectedFY]);
 
   // STRICT DESCENDING ORDER FOR PAST BILLS (Newest Bill No. 5, 4, 3, 2, 1 at the top!)
   const sortedSalesHistory = useMemo(() => {
@@ -332,8 +370,118 @@ export default function SaleScreen({
     ) {
       if (onDeleteSale) {
         onDeleteSale(sale.id);
+        Storage.recordDeletedId(sale.id);
         showToast(`Bill No. ${sale.invoiceNo} deleted!`);
       }
+    }
+  };
+
+  // ==================== SALES RETURN HANDLERS ====================
+  const handleAddReturnItem = (item) => {
+    setReturnCart((prev) => {
+      const existing = prev.find((i) => i.id === item.id);
+      if (existing) {
+        return prev.map((i) => (i.id === item.id ? { ...i, qty: (Number(i.qty) || 1) + 1 } : i));
+      }
+      return [...prev, { ...item, qty: 1, price: item.price, unit: 'Bag' }];
+    });
+    showToast(`Added ${item.name} to return`);
+  };
+
+  const handleUpdateReturnQty = (itemId, newQty) => {
+    setReturnCart((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, qty: newQty } : i))
+    );
+  };
+
+  const handleUpdateReturnPrice = (itemId, newPrice) => {
+    setReturnCart((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, price: newPrice } : i))
+    );
+  };
+
+  const handleRemoveReturnItem = (itemId) => {
+    setReturnCart((prev) => prev.filter((i) => i.id !== itemId));
+  };
+
+  const returnTotal = useMemo(() => {
+    return returnCart.reduce((sum, item) => sum + (Number(item.qty) || 0) * (Number(item.price) || 0), 0);
+  }, [returnCart]);
+
+  const handleSaveSalesReturn = (e) => {
+    e.preventDefault();
+    if (!returnCustomerId) {
+      showToast('Please select a customer for Sales Return!');
+      return;
+    }
+    if (returnCart.length === 0) {
+      showToast('Please add at least 1 returned item!');
+      return;
+    }
+
+    const returnNo = salesReturns.length + 1;
+    const newReturn = {
+      id: `ret-${Date.now()}`,
+      returnNo,
+      date: returnDate,
+      customerId: returnCustomerId,
+      customerName: selectedReturnCustomer?.name || 'Customer',
+      customerPhone: selectedReturnCustomer?.phone || '',
+      items: returnCart.map((i) => ({
+        ...i,
+        qty: Math.max(1, Number(i.qty) || 1),
+        price: Math.max(0, Number(i.price) || 0),
+        unit: 'Bag',
+      })),
+      totalAmount: returnTotal,
+      reason: returnReason,
+      notes: returnNotes.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const updated = [newReturn, ...salesReturns];
+    setSalesReturns(updated);
+    Storage.saveSalesReturns(updated);
+
+    showToast(`Sales Return #SR-${returnNo} Saved! Stock increased & customer credited.`);
+
+    // 1-Tap WhatsApp to customer
+    if (selectedReturnCustomer?.phone) {
+      const itemsList = newReturn.items
+        .map((i, idx) => `${idx + 1}. *${i.name}*\n   Returned: ${i.qty} Bag @ Rs.${i.price} = *Rs.${(i.qty * i.price).toFixed(2)}*`)
+        .join('\n');
+
+      const whatsappMsg =
+        `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `↩️ *SALES RETURN VOUCHER (விற்பனை திருப்பம்)*\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `Voucher: *#SR-${returnNo}*\n` +
+        `Date: ${formatDate(returnDate)}\n` +
+        `Customer: *${selectedReturnCustomer.name}*\n` +
+        `Reason: *${returnReason}*\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `${itemsList}\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `*Total Credited to Account: Rs. ${returnTotal.toFixed(2)}*\n` +
+        `*Current Balance Due: Rs. ${formatCurrency(Storage.getCustomerBalance(returnCustomerId).netDue)}*\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `Returned bags received into stock. Thank you!`;
+
+      openDirectWhatsApp(selectedReturnCustomer.phone, whatsappMsg);
+    }
+
+    setReturnCart([]);
+    setReturnNotes('');
+  };
+
+  const handleDeleteSalesReturn = (retId) => {
+    if (confirm('Delete this Sales Return? Stock and customer balance will be adjusted.')) {
+      const updated = salesReturns.filter((r) => r.id !== retId);
+      setSalesReturns(updated);
+      Storage.saveSalesReturns(updated);
+      Storage.recordDeletedId(retId);
+      showToast('Sales return deleted');
     }
   };
 
@@ -404,38 +552,460 @@ export default function SaleScreen({
         </div>
       )}
 
-      {/* View Switcher: New Bill vs Past Invoices */}
-      <div className="p-3 bg-white border-b border-slate-200 flex gap-2">
+      {/* VIEW 3: SALES RETURN (விற்பனை திருப்பம்) */}
+      {activeView === 'return' && (
+        <div className="p-3 space-y-3 animate-in fade-in duration-200">
+          <form onSubmit={handleSaveSalesReturn} className="space-y-3">
+            {/* Top Bar: Return No & Date */}
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-amber-600 block">
+                  Return Voucher No.
+                </span>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-xs font-bold text-slate-400">#SR-</span>
+                  <span className="font-black text-amber-800 text-lg">
+                    {salesReturns.length + 1}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                  Return Date
+                </span>
+                <input
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Customer Selection Card for Return */}
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs space-y-2">
+              <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+                <User className="w-4 h-4 text-amber-600" />
+                Customer Returning Goods (வாடிக்கையாளர்) *
+              </label>
+
+              {selectedReturnCustomer ? (
+                <div className="p-3 bg-amber-50 rounded-xl border-2 border-amber-400 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                  <div>
+                    <div className="text-[10px] uppercase font-black text-amber-800 tracking-wider flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5 text-amber-600" />
+                      Selected Customer
+                    </div>
+                    <div className="font-black text-slate-900 text-base mt-0.5">
+                      {selectedReturnCustomer.name}
+                    </div>
+                    <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-semibold">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      {selectedReturnCustomer.phone}
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-slate-500 block font-bold uppercase">
+                      Current Due
+                    </span>
+                    <span className="font-black text-sm text-red-600 block">
+                      {formatCurrency(Storage.getCustomerBalance(selectedReturnCustomer.id).netDue)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnCustomerId('');
+                        setReturnCustomerSearch('');
+                      }}
+                      className="mt-1 px-2.5 py-1 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 border border-slate-300 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Change
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Type name to search customer for return..."
+                      value={returnCustomerSearch}
+                      onChange={(e) => setReturnCustomerSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border-2 border-amber-200 focus:border-amber-600 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none"
+                    />
+                    {returnCustomerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setReturnCustomerSearch('')}
+                        className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {returnCustomerSearch.trim() ? (
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto border border-amber-200 rounded-xl p-1 bg-amber-50/40">
+                      {filteredReturnCustomers.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-500">
+                          Customer "{returnCustomerSearch}" not found.
+                        </div>
+                      ) : (
+                        filteredReturnCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setReturnCustomerId(c.id);
+                              setReturnCustomerSearch('');
+                            }}
+                            className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-400 flex items-center justify-between shadow-2xs transition-all active:scale-98"
+                          >
+                            <div>
+                              <div className="font-black text-slate-900 text-sm">{c.name}</div>
+                              <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                {c.phone}
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-amber-700 font-bold">
+                              Select Customer →
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      value={returnCustomerId}
+                      onChange={(e) => setReturnCustomerId(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">-- Or Choose Customer from List ({customers.length}) --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.phone})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tap Item to Add Return */}
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase">
+                  Tap Item Returned by Customer
+                </span>
+                <span className="text-[11px] text-amber-600 font-semibold">
+                  Unit: 50kg Bag
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {items.map((item) => {
+                  const inCart = returnCart.find((i) => i.id === item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleAddReturnItem(item)}
+                      className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex flex-col justify-between min-h-[75px] ${
+                        inCart
+                          ? 'border-amber-600 bg-amber-50/50 shadow-xs ring-1 ring-amber-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-extrabold text-slate-900 text-xs line-clamp-2 leading-snug">
+                        {item.name}
+                      </div>
+                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                        <span className="text-xs font-black text-amber-700">₹{item.price}</span>
+                        {inCart && (
+                          <span className="px-1.5 py-0.5 bg-amber-600 text-white text-[10px] font-black rounded-full">
+                            {inCart.qty} Bag
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Returned Items Table */}
+            {returnCart.length > 0 && (
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+                <span className="text-xs font-bold text-slate-700 uppercase block">
+                  Items to Return ({returnCart.length})
+                </span>
+
+                <div className="space-y-2">
+                  {returnCart.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2.5 bg-amber-50/40 rounded-xl border border-amber-200 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 truncate">{item.name}</div>
+                        <div className="flex items-center gap-1 mt-1 text-slate-600">
+                          <span>Return Rate ₹</span>
+                          <input
+                            type="number"
+                            value={item.price}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleUpdateReturnPrice(item.id, e.target.value)}
+                            className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-bold"
+                          />
+                          <span>/ Bag</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(item.qty) || 1;
+                            if (cur > 1) handleUpdateReturnQty(item.id, cur - 1);
+                            else handleRemoveReturnItem(item.id);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          value={item.qty}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleUpdateReturnQty(item.id, e.target.value)}
+                          className="w-12 py-1 text-center font-black bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateReturnQty(item.id, (Number(item.qty) || 0) + 1)}
+                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="text-right shrink-0 min-w-[60px]">
+                        <div className="font-black text-amber-900">
+                          ₹{((Number(item.qty) || 0) * (Number(item.price) || 0)).toFixed(2)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReturnItem(item.id)}
+                          className="text-[10px] text-red-500 hover:text-red-700 mt-1"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Return Reason & Notes */}
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Return Reason (காரணம்)
+                </label>
+                <select
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
+                >
+                  <option value="Quality issue (தரம் சரியில்லை)">Quality issue (தரம் சரியில்லை)</option>
+                  <option value="Damaged bags (சேதமடைந்த பைகள்)">Damaged bags (சேதமடைந்த பைகள்)</option>
+                  <option value="Excess bags returned (கூடுதல் தானியம்)">Excess bags returned (கூடுதல் தானியம்)</option>
+                  <option value="Wrong item supplied (தவறான பொருள்)">Wrong item supplied (தவறான பொருள்)</option>
+                  <option value="Other / இதர காரணம்">Other / இதர காரணம்</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional notes..."
+                  value={returnNotes}
+                  onChange={(e) => setReturnNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="text-sm font-bold text-slate-800">Total Credit Amount:</span>
+                <span className="text-2xl font-black text-amber-600">
+                  {formatCurrency(returnTotal)}
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
+              >
+                <RotateCcw className="w-5 h-5" />
+                <span>SAVE SALES RETURN & CREDIT CUSTOMER</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Past Sales Returns List */}
+          <div className="space-y-2 pt-2">
+            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <RotateCcw className="w-4 h-4 text-amber-600" />
+              Past Sales Returns ({salesReturns.length})
+            </h4>
+
+            {salesReturns.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center border border-slate-200 text-slate-400 text-xs">
+                No sales returns recorded yet.
+              </div>
+            ) : (
+              salesReturns.map((ret) => (
+                <div
+                  key={ret.id}
+                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2 text-xs"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 text-sm">
+                          Voucher #SR-{ret.returnNo}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
+                          {ret.reason?.split(' ')[0] || 'Return'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-700 mt-0.5">
+                        {ret.customerName} {ret.customerPhone ? `• ${ret.customerPhone}` : ''}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {(ret.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="font-black text-amber-700 text-base">
+                        {formatCurrency(ret.totalAmount)}
+                      </div>
+                      <div className="text-[11px] text-slate-400">{formatDate(ret.date)}</div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSalesReturn(ret.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg text-xs flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const itemsList = (ret.items || [])
+                          .map((i, idx) => `${idx + 1}. *${i.name}*\n   Returned: ${i.qty} Bag @ Rs.${i.price} = *Rs.${(i.qty * i.price).toFixed(2)}*`)
+                          .join('\n');
+                        const msg =
+                          `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `↩️ *SALES RETURN VOUCHER (விற்பனை திருப்பம்)*\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `Voucher: *#SR-${ret.returnNo}*\n` +
+                          `Date: ${formatDate(ret.date)}\n` +
+                          `Customer: *${ret.customerName}*\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `${itemsList}\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `*Total Credited: Rs. ${Number(ret.totalAmount).toFixed(2)}*\n` +
+                          `Thank you!`;
+                        openDirectWhatsApp(ret.customerPhone, msg);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>WhatsApp Voucher</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* View Switcher: New Bill vs Sales Return vs Past Invoices */}
+      <div className="p-3 bg-white border-b border-slate-200 flex gap-1.5">
         <button
           onClick={() => setActiveView('create')}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
             activeView === 'create'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
-          + Create New Bill
+          + Bill Entry
+        </button>
+        <button
+          onClick={() => setActiveView('return')}
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1 ${
+            activeView === 'return'
+              ? 'bg-amber-600 text-white shadow-xs'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Return ({salesReturns.length})</span>
         </button>
         <button
           onClick={() => setActiveView('history')}
-          className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1 ${
             activeView === 'history'
               ? 'bg-blue-600 text-white shadow-xs'
               : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
           }`}
         >
           <Clock className="w-3.5 h-3.5" />
-          Past Bills ({sales.length})
+          <span>Past Bills ({sales.length})</span>
         </button>
       </div>
 
-      {activeView === 'history' ? (
-        /* PAST BILLS LIST WITH SEARCH & 1-TAP RESEND */
+      {/* VIEW 1: PAST BILLS LIST WITH FY FILTER & 1-TAP RESEND */}
+      {activeView === 'history' && (
         <div className="p-3.5 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Past Bills ({sales.length}) - Tap to Resend
+              Past Bills ({sortedSalesHistory.length})
             </span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400">FY:</span>
+              <select
+                value={selectedFY}
+                onChange={(e) => setSelectedFY(e.target.value)}
+                className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-black text-slate-800 focus:outline-none"
+              >
+                <option value="ALL">All Financial Years</option>
+                {availableFYs.map((fy) => (
+                  <option key={fy} value={fy}>
+                    FY {fy}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="relative">
@@ -532,8 +1102,10 @@ export default function SaleScreen({
             ))
           )}
         </div>
-      ) : (
-        /* CREATE BILL FORM */
+      )}
+
+      {/* VIEW 2: CREATE BILL FORM */}
+      {activeView === 'create' && (
         <div className="p-3 space-y-3">
           {/* Top Bar: Bill No & Date */}
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
@@ -541,10 +1113,13 @@ export default function SaleScreen({
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
                 Bill Number (தானாக ஏறும்)
               </span>
-              <div className="flex items-center gap-1 mt-0.5">
+              <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-xs font-bold text-slate-400">No.</span>
                 <span className="font-black text-blue-600 text-lg">
                   {autoInvoiceNo}
+                </span>
+                <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">
+                  FY {currentFY}
                 </span>
               </div>
             </div>
@@ -1025,6 +1600,402 @@ export default function SaleScreen({
               <Eye className="w-3.5 h-3.5" />
               Preview PDF
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: SALES RETURN (விற்பனை திருப்பம்) */}
+      {activeView === 'return' && (
+        <div className="p-3 space-y-3 animate-in fade-in duration-200">
+          <form onSubmit={handleSaveSalesReturn} className="space-y-3">
+            {/* Top Bar: Return No & Date */}
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-amber-600 block">
+                  Return Voucher No.
+                </span>
+                <div className="flex items-center gap-1 mt-0.5">
+                  <span className="text-xs font-bold text-slate-400">#SR-</span>
+                  <span className="font-black text-amber-800 text-lg">
+                    {salesReturns.length + 1}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                  Return Date
+                </span>
+                <input
+                  type="date"
+                  value={returnDate}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Customer Selection Card for Return */}
+            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs space-y-2">
+              <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+                <User className="w-4 h-4 text-amber-600" />
+                Customer Returning Goods (வாடிக்கையாளர்) *
+              </label>
+
+              {selectedReturnCustomer ? (
+                <div className="p-3 bg-amber-50 rounded-xl border-2 border-amber-400 flex items-center justify-between text-xs animate-in fade-in duration-150">
+                  <div>
+                    <div className="text-[10px] uppercase font-black text-amber-800 tracking-wider flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5 text-amber-600" />
+                      Selected Customer
+                    </div>
+                    <div className="font-black text-slate-900 text-base mt-0.5">
+                      {selectedReturnCustomer.name}
+                    </div>
+                    <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-semibold">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                      {selectedReturnCustomer.phone}
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-slate-500 block font-bold uppercase">
+                      Current Due
+                    </span>
+                    <span className="font-black text-sm text-red-600 block">
+                      {formatCurrency(Storage.getCustomerBalance(selectedReturnCustomer.id).netDue)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnCustomerId('');
+                        setReturnCustomerSearch('');
+                      }}
+                      className="mt-1 px-2.5 py-1 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 border border-slate-300 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Change
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="Type name to search customer for return..."
+                      value={returnCustomerSearch}
+                      onChange={(e) => setReturnCustomerSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border-2 border-amber-200 focus:border-amber-600 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none"
+                    />
+                    {returnCustomerSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setReturnCustomerSearch('')}
+                        className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {returnCustomerSearch.trim() ? (
+                    <div className="space-y-1.5 max-h-56 overflow-y-auto border border-amber-200 rounded-xl p-1 bg-amber-50/40">
+                      {filteredReturnCustomers.length === 0 ? (
+                        <div className="p-3 text-center text-xs text-slate-500">
+                          Customer "{returnCustomerSearch}" not found.
+                        </div>
+                      ) : (
+                        filteredReturnCustomers.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              setReturnCustomerId(c.id);
+                              setReturnCustomerSearch('');
+                            }}
+                            className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-400 flex items-center justify-between shadow-2xs transition-all active:scale-98"
+                          >
+                            <div>
+                              <div className="font-black text-slate-900 text-sm">{c.name}</div>
+                              <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
+                                <Phone className="w-3 h-3 text-emerald-600" />
+                                {c.phone}
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-amber-700 font-bold">
+                              Select Customer →
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      value={returnCustomerId}
+                      onChange={(e) => setReturnCustomerId(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">-- Or Choose Customer from List ({customers.length}) --</option>
+                      {customers.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.phone})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Tap Item to Add Return */}
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase">
+                  Tap Item Returned by Customer
+                </span>
+                <span className="text-[11px] text-amber-600 font-semibold">
+                  Unit: 50kg Bag
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {items.map((item) => {
+                  const inCart = returnCart.find((i) => i.id === item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleAddReturnItem(item)}
+                      className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex flex-col justify-between min-h-[75px] ${
+                        inCart
+                          ? 'border-amber-600 bg-amber-50/50 shadow-xs ring-1 ring-amber-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300'
+                      }`}
+                    >
+                      <div className="font-extrabold text-slate-900 text-xs line-clamp-2 leading-snug">
+                        {item.name}
+                      </div>
+                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
+                        <span className="text-xs font-black text-amber-700">₹{item.price}</span>
+                        {inCart && (
+                          <span className="px-1.5 py-0.5 bg-amber-600 text-white text-[10px] font-black rounded-full">
+                            {inCart.qty} Bag
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Returned Items Table */}
+            {returnCart.length > 0 && (
+              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+                <span className="text-xs font-bold text-slate-700 uppercase block">
+                  Items to Return ({returnCart.length})
+                </span>
+
+                <div className="space-y-2">
+                  {returnCart.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-2.5 bg-amber-50/40 rounded-xl border border-amber-200 flex items-center justify-between gap-2 text-xs"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-bold text-slate-900 truncate">{item.name}</div>
+                        <div className="flex items-center gap-1 mt-1 text-slate-600">
+                          <span>Return Rate ₹</span>
+                          <input
+                            type="number"
+                            value={item.price}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleUpdateReturnPrice(item.id, e.target.value)}
+                            className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-bold"
+                          />
+                          <span>/ Bag</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const cur = Number(item.qty) || 1;
+                            if (cur > 1) handleUpdateReturnQty(item.id, cur - 1);
+                            else handleRemoveReturnItem(item.id);
+                          }}
+                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <input
+                          type="number"
+                          value={item.qty}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleUpdateReturnQty(item.id, e.target.value)}
+                          className="w-12 py-1 text-center font-black bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateReturnQty(item.id, (Number(item.qty) || 0) + 1)}
+                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      <div className="text-right shrink-0 min-w-[60px]">
+                        <div className="font-black text-amber-900">
+                          ₹{((Number(item.qty) || 0) * (Number(item.price) || 0)).toFixed(2)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveReturnItem(item.id)}
+                          className="text-[10px] text-red-500 hover:text-red-700 mt-1"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Return Reason & Notes */}
+            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Return Reason (காரணம்)
+                </label>
+                <select
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
+                >
+                  <option value="Quality issue (தரம் சரியில்லை)">Quality issue (தரம் சரியில்லை)</option>
+                  <option value="Damaged bags (சேதமடைந்த பைகள்)">Damaged bags (சேதமடைந்த பைகள்)</option>
+                  <option value="Excess bags returned (கூடுதல் தானியம்)">Excess bags returned (கூடுதல் தானியம்)</option>
+                  <option value="Wrong item supplied (தவறான பொருள்)">Wrong item supplied (தவறான பொருள்)</option>
+                  <option value="Other / இதர காரணம்">Other / இதர காரணம்</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                  Notes
+                </label>
+                <input
+                  type="text"
+                  placeholder="Optional notes..."
+                  value={returnNotes}
+                  onChange={(e) => setReturnNotes(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <span className="text-sm font-bold text-slate-800">Total Credit Amount:</span>
+                <span className="text-2xl font-black text-amber-600">
+                  {formatCurrency(returnTotal)}
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
+              >
+                <RotateCcw className="w-5 h-5" />
+                <span>SAVE SALES RETURN & CREDIT CUSTOMER</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Past Sales Returns List */}
+          <div className="space-y-2 pt-2">
+            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <RotateCcw className="w-4 h-4 text-amber-600" />
+              Past Sales Returns ({salesReturns.length})
+            </h4>
+
+            {salesReturns.length === 0 ? (
+              <div className="bg-white rounded-xl p-8 text-center border border-slate-200 text-slate-400 text-xs">
+                No sales returns recorded yet.
+              </div>
+            ) : (
+              salesReturns.map((ret) => (
+                <div
+                  key={ret.id}
+                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2 text-xs"
+                >
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-slate-900 text-sm">
+                          Voucher #SR-{ret.returnNo}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
+                          {ret.reason?.split(' ')[0] || 'Return'}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-700 mt-0.5">
+                        {ret.customerName} {ret.customerPhone ? `• ${ret.customerPhone}` : ''}
+                      </div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {(ret.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
+                      </div>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <div className="font-black text-amber-700 text-base">
+                        {formatCurrency(ret.totalAmount)}
+                      </div>
+                      <div className="text-[11px] text-slate-400">{formatDate(ret.date)}</div>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSalesReturn(ret.id)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg text-xs flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Delete</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const itemsList = (ret.items || [])
+                          .map((i, idx) => `${idx + 1}. *${i.name}*\n   Returned: ${i.qty} Bag @ Rs.${i.price} = *Rs.${(i.qty * i.price).toFixed(2)}*`)
+                          .join('\n');
+                        const msg =
+                          `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `↩️ *SALES RETURN VOUCHER (விற்பனை திருப்பம்)*\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `Voucher: *#SR-${ret.returnNo}*\n` +
+                          `Date: ${formatDate(ret.date)}\n` +
+                          `Customer: *${ret.customerName}*\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `${itemsList}\n` +
+                          `━━━━━━━━━━━━━━━━━━\n` +
+                          `*Total Credited: Rs. ${Number(ret.totalAmount).toFixed(2)}*\n` +
+                          `Thank you!`;
+                        openDirectWhatsApp(ret.customerPhone, msg);
+                      }}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>WhatsApp Voucher</span>
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

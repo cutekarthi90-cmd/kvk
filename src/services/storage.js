@@ -1,6 +1,6 @@
 // Local Storage Service for QuickBill - KVK Thaniya Mandi
 
-const STORAGE_KEYS = {
+export const STORAGE_KEYS = {
   SHOP: 'quickbill_shop_settings',
   ITEMS: 'quickbill_items',
   CUSTOMERS: 'quickbill_customers',
@@ -9,6 +9,13 @@ const STORAGE_KEYS = {
   PURCHASES: 'quickbill_purchases',
   SUPPLIERS: 'quickbill_suppliers',
   SUPPLIER_PAYMENTS: 'quickbill_supplier_payments',
+  SALES_RETURNS: 'quickbill_sales_returns',
+  EXPENSES: 'quickbill_expenses',
+  INTEREST_LOANS: 'quickbill_interest_loans',
+  INTEREST_PAYMENTS: 'quickbill_interest_payments',
+  FINANCIAL_YEAR: 'quickbill_financial_year',
+  DELETED_IDS: 'quickbill_deleted_ids',
+  LAST_MODIFIED: 'quickbill_last_modified',
 };
 
 const DEFAULT_SHOP = {
@@ -64,7 +71,60 @@ const DEFAULT_CUSTOMERS = [
   },
 ];
 
+/**
+ * Get Financial Year based on date (Indian FY: April 1 to March 31)
+ * E.g. "2026-05-20" -> "2026-2027", "2027-02-15" -> "2026-2027"
+ */
+export const getFinancialYear = (dateInput) => {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) return '2026-2027';
+  const month = d.getMonth() + 1; // 1 to 12
+  const year = d.getFullYear();
+  if (month >= 4) {
+    return `${year}-${year + 1}`;
+  } else {
+    return `${year - 1}-${year}`;
+  }
+};
+
 export const Storage = {
+  // --- TOMBSTONES & VERSION TRACKING (Prevents resurrected items on sync) ---
+  getDeletedIds: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.DELETED_IDS);
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+
+  recordDeletedId: (id) => {
+    if (!id) return;
+    try {
+      const current = Storage.getDeletedIds();
+      if (!current.includes(id)) {
+        current.push(id);
+        localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(current));
+      }
+      Storage.touchModified();
+    } catch (e) {
+      console.warn('Error recording deleted id:', e);
+    }
+  },
+
+  isDeleted: (id) => {
+    return Storage.getDeletedIds().includes(id);
+  },
+
+  touchModified: () => {
+    localStorage.setItem(STORAGE_KEYS.LAST_MODIFIED, Date.now().toString());
+  },
+
+  getLastModified: () => {
+    return Number(localStorage.getItem(STORAGE_KEYS.LAST_MODIFIED)) || 0;
+  },
+
+  // --- SHOP SETTINGS ---
   getShopSettings: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SHOP);
@@ -82,19 +142,20 @@ export const Storage = {
   },
   saveShopSettings: (settings) => {
     localStorage.setItem(STORAGE_KEYS.SHOP, JSON.stringify(settings));
+    Storage.touchModified();
   },
 
+  // --- ITEMS & STOCK MASTER ---
   getItems: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.ITEMS);
+      const deleted = Storage.getDeletedIds();
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Keep user items as they are, simply ensuring unit is Bag
-          return parsed.map((item) => ({
-            ...item,
-            unit: 'Bag',
-          }));
+          return parsed
+            .filter((item) => !deleted.includes(item.id))
+            .map((item) => ({ ...item, unit: 'Bag' }));
         }
       }
       Storage.saveItems(DEFAULT_ITEMS);
@@ -105,14 +166,19 @@ export const Storage = {
   },
   saveItems: (items) => {
     localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(items));
+    Storage.touchModified();
   },
 
+  // --- CUSTOMERS ---
   getCustomers: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
+      const deleted = Storage.getDeletedIds();
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((c) => !deleted.includes(c.id));
+        }
       }
       Storage.saveCustomers(DEFAULT_CUSTOMERS);
       return DEFAULT_CUSTOMERS;
@@ -122,64 +188,76 @@ export const Storage = {
   },
   saveCustomers: (customers) => {
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
+    Storage.touchModified();
   },
 
+  // --- SALES & FINANCIAL YEAR NUMBERING ---
   getSales: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SALES);
-      return data ? JSON.parse(data) : [];
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((s) => !deleted.includes(s.id));
     } catch {
       return [];
     }
   },
   saveSales: (sales) => {
     localStorage.setItem(STORAGE_KEYS.SALES, JSON.stringify(sales));
+    Storage.touchModified();
   },
 
+  /**
+   * Auto-increment Bill No per Financial Year!
+   * E.g. When transitioning from 2026-2027 to 2027-2028, restarts at 1!
+   */
+  getNextInvoiceNo: (sales = [], targetDate = null) => {
+    const fy = getFinancialYear(targetDate || new Date().toISOString().split('T')[0]);
+    const fySales = (sales || []).filter((s) => getFinancialYear(s.date) === fy);
+    const maxNo = fySales.reduce((max, s) => Math.max(max, Number(s.invoiceNo) || 0), 0);
+    return maxNo + 1;
+  },
+
+  // --- RECEIPTS (Customer Payments) ---
   getReceipts: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.RECEIPTS);
-      return data ? JSON.parse(data) : [];
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((r) => !deleted.includes(r.id));
     } catch {
       return [];
     }
   },
   saveReceipts: (receipts) => {
     localStorage.setItem(STORAGE_KEYS.RECEIPTS, JSON.stringify(receipts));
+    Storage.touchModified();
   },
 
+  // --- PURCHASES (Regular GST & Q-Purchases) ---
   getPurchases: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.PURCHASES);
-      return data ? JSON.parse(data) : [];
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((p) => !deleted.includes(p.id));
     } catch {
       return [];
     }
   },
   savePurchases: (purchases) => {
     localStorage.setItem(STORAGE_KEYS.PURCHASES, JSON.stringify(purchases));
+    Storage.touchModified();
   },
 
+  // --- SUPPLIERS & SUPPLIER PAYMENTS ---
   getSuppliers: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SUPPLIERS);
-      if (data) return JSON.parse(data);
-      // Auto-extract from existing purchases if any
-      const purchases = Storage.getPurchases();
-      const map = {};
-      purchases.forEach((p) => {
-        if (p.supplierName && !map[p.supplierName.trim()]) {
-          map[p.supplierName.trim()] = {
-            id: `sup-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            name: p.supplierName.trim(),
-            phone: p.supplierPhone || '',
-          };
-        }
-      });
-      const extracted = Object.values(map);
-      if (extracted.length > 0) {
-        Storage.saveSuppliers(extracted);
-        return extracted;
+      const deleted = Storage.getDeletedIds();
+      if (data) {
+        const parsed = JSON.parse(data);
+        return parsed.filter((s) => !deleted.includes(s.id));
       }
       return [
         { id: 'sup-1', name: 'Raju Agro Pollachi', phone: '9842112345' },
@@ -191,23 +269,92 @@ export const Storage = {
   },
   saveSuppliers: (suppliers) => {
     localStorage.setItem(STORAGE_KEYS.SUPPLIERS, JSON.stringify(suppliers));
+    Storage.touchModified();
   },
 
   getSupplierPayments: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.SUPPLIER_PAYMENTS);
-      return data ? JSON.parse(data) : [];
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((p) => !deleted.includes(p.id));
     } catch {
       return [];
     }
   },
   saveSupplierPayments: (payments) => {
     localStorage.setItem(STORAGE_KEYS.SUPPLIER_PAYMENTS, JSON.stringify(payments));
+    Storage.touchModified();
   },
 
-  // Calculate supplier balance: Total Purchases - Immediate Paid - Later Supplier Payments
+  // --- SALES RETURNS (விற்பனை திருப்பம்) ---
+  getSalesReturns: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.SALES_RETURNS);
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((item) => !deleted.includes(item.id));
+    } catch {
+      return [];
+    }
+  },
+  saveSalesReturns: (returns) => {
+    localStorage.setItem(STORAGE_KEYS.SALES_RETURNS, JSON.stringify(returns));
+    Storage.touchModified();
+  },
+
+  // --- EXPENSES TRACKER (டீசல் & கூலி - Diesel, Kooli) ---
+  getExpenses: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.EXPENSES);
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((e) => !deleted.includes(e.id));
+    } catch {
+      return [];
+    }
+  },
+  saveExpenses: (expenses) => {
+    localStorage.setItem(STORAGE_KEYS.EXPENSES, JSON.stringify(expenses));
+    Storage.touchModified();
+  },
+
+  // --- INTEREST LOANS TRACKER (வட்டி கணக்கு) ---
+  getInterestLoans: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.INTEREST_LOANS);
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((l) => !deleted.includes(l.id));
+    } catch {
+      return [];
+    }
+  },
+  saveInterestLoans: (loans) => {
+    localStorage.setItem(STORAGE_KEYS.INTEREST_LOANS, JSON.stringify(loans));
+    Storage.touchModified();
+  },
+
+  getInterestPayments: () => {
+    try {
+      const data = localStorage.getItem(STORAGE_KEYS.INTEREST_PAYMENTS);
+      const list = data ? JSON.parse(data) : [];
+      const deleted = Storage.getDeletedIds();
+      return list.filter((p) => !deleted.includes(p.id));
+    } catch {
+      return [];
+    }
+  },
+  saveInterestPayments: (payments) => {
+    localStorage.setItem(STORAGE_KEYS.INTEREST_PAYMENTS, JSON.stringify(payments));
+    Storage.touchModified();
+  },
+
+  // --- FINANCIAL CALCULATIONS & LEDGERS ---
+
+  // Calculate supplier balance: Total Purchases - Immediate Paid - Later Payments - Discounts
   getSupplierBalance: (supplierName) => {
-    if (!supplierName) return { totalPurchases: 0, totalPaid: 0, netDue: 0 };
+    if (!supplierName) return { totalPurchases: 0, totalPaid: 0, totalDiscount: 0, netDue: 0 };
     const sName = supplierName.trim().toLowerCase();
     const purchases = Storage.getPurchases().filter(
       (p) => (p.supplierName || '').trim().toLowerCase() === sName
@@ -217,23 +364,27 @@ export const Storage = {
     );
 
     const totalPurchases = purchases.reduce((sum, p) => sum + (Number(p.grandTotal) || 0), 0);
+    const totalPurchaseDiscount = purchases.reduce((sum, p) => sum + (Number(p.discount) || 0), 0);
     const immediatePaid = purchases.reduce(
-      (sum, p) => sum + (p.paymentStatus === 'PAID' ? Number(p.grandTotal) || 0 : 0),
+      (sum, p) => sum + (p.paymentStatus === 'PAID' ? Number(p.grandTotal) || 0 : (Number(p.paidAmount) || 0)),
       0
     );
     const laterPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const laterDiscount = payments.reduce((sum, p) => sum + (Number(p.discount) || 0), 0);
 
     const totalPaid = immediatePaid + laterPaid;
-    const netDue = Math.max(0, totalPurchases - totalPaid);
+    const totalDiscount = totalPurchaseDiscount + laterDiscount;
+    const netDue = Math.max(0, totalPurchases - totalPaid - laterDiscount);
 
     return {
       totalPurchases,
       totalPaid,
+      totalDiscount,
       netDue,
     };
   },
 
-  // Calculate live item stock: Initial Stock + Total Purchased - Total Sold
+  // Calculate live item stock: Initial Stock + Total Purchased + Total Returned - Total Sold
   getItemStock: (itemId) => {
     const items = Storage.getItems();
     const item = items.find((i) => i.id === itemId);
@@ -242,12 +393,22 @@ export const Storage = {
     const initial = Number(item.initialStock) || 0;
     const purchases = Storage.getPurchases();
     const sales = Storage.getSales();
+    const returns = Storage.getSalesReturns();
 
     let purchasedQty = 0;
     purchases.forEach((p) => {
       (p.items || []).forEach((pi) => {
         if (pi.id === itemId) {
           purchasedQty += Number(pi.qty) || 0;
+        }
+      });
+    });
+
+    let returnedQty = 0;
+    returns.forEach((r) => {
+      (r.items || []).forEach((ri) => {
+        if (ri.id === itemId) {
+          returnedQty += Number(ri.qty) || 0;
         }
       });
     });
@@ -261,10 +422,10 @@ export const Storage = {
       });
     });
 
-    return initial + purchasedQty - soldQty;
+    return initial + purchasedQty + returnedQty - soldQty;
   },
 
-  // Calculate customer balance including Opening Balance
+  // Calculate customer balance including Opening Balance & Sales Returns
   getCustomerBalance: (customerId) => {
     const cust = Storage.getCustomers().find((c) => c.id === customerId);
     const opBal = Number(cust?.openingBalance) || 0;
@@ -272,29 +433,33 @@ export const Storage = {
 
     const sales = Storage.getSales().filter((s) => s.customerId === customerId);
     const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+    const returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
 
     const totalSales = sales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
     const totalReceipts = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
     const immediatePaid = sales.reduce((sum, s) => sum + (Number(s.paidAmount) || 0), 0);
-    const totalPaid = totalReceipts + immediatePaid;
+    const totalReturns = returns.reduce((sum, r) => sum + (Number(r.totalAmount) || 0), 0);
+
+    const totalCredits = totalReceipts + immediatePaid + totalReturns;
 
     let netDue = 0;
     if (opType === 'CREDIT') {
-      netDue = totalSales - totalPaid - opBal;
+      netDue = totalSales - totalCredits - opBal;
     } else {
-      netDue = opBal + totalSales - totalPaid;
+      netDue = opBal + totalSales - totalCredits;
     }
 
     return {
       openingBalance: opBal,
       openingBalanceType: opType,
       totalSales,
-      totalPaid,
-      netDue,
+      totalPaid: totalReceipts + immediatePaid,
+      totalReturns,
+      netDue: Math.max(0, netDue),
     };
   },
 
-  // Full customer ledger transactions sorted by date ascending with Opening Balance
+  // Full customer ledger transactions sorted by date ascending with Opening Balance & Returns
   getCustomerLedger: (customerId) => {
     const cust = Storage.getCustomers().find((c) => c.id === customerId);
     const opBal = Number(cust?.openingBalance) || 0;
@@ -302,10 +467,11 @@ export const Storage = {
 
     const sales = Storage.getSales().filter((s) => s.customerId === customerId);
     const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+    const returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
 
     const transactions = [];
 
-    // 1. Opening Balance Transaction if present
+    // 1. Opening Balance Transaction
     if (opBal > 0) {
       const opDate = cust.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
       transactions.push({
@@ -340,13 +506,11 @@ export const Storage = {
           id: `${s.id}-paid`,
           date: s.date,
           createdAt: s.createdAt || s.date,
-          type: 'RECEIPT',
-          refNo: `${s.invoiceNo} (Paid)`,
-          description: `Immediate payment on Bill #${s.invoiceNo}`,
+          type: 'PAYMENT',
+          refNo: String(s.invoiceNo || '1'),
+          description: `Cash received for Bill #${s.invoiceNo}`,
           debit: 0,
           credit: Number(s.paidAmount) || 0,
-          paymentMode: s.paymentMode || 'Cash',
-          raw: s,
         });
       }
     });
@@ -363,6 +527,21 @@ export const Storage = {
         credit: Number(r.amount) || 0,
         paymentMode: r.paymentMode,
         raw: r,
+      });
+    });
+
+    returns.forEach((ret) => {
+      transactions.push({
+        id: ret.id,
+        date: ret.date,
+        createdAt: ret.createdAt || ret.date,
+        type: 'RETURN',
+        refNo: `SR-${ret.returnNo || '1'}`,
+        description: `Sales Return (விற்பனை திருப்பம்): ${ret.items.length} items (${ret.reason || 'Goods Return'})`,
+        debit: 0,
+        credit: Number(ret.totalAmount) || 0,
+        items: ret.items,
+        raw: ret,
       });
     });
 
@@ -384,6 +563,40 @@ export const Storage = {
     });
   },
 
+  // --- SAFE MULTI-DEVICE SYNC MERGE ---
+  // Guarantees phone's active data is never wiped by an ephemeral waking server!
+  mergeSafeServerData: (serverData) => {
+    if (!serverData) return null;
+    const deleted = Storage.getDeletedIds();
+
+    const mergeById = (localList, serverList) => {
+      const map = new Map();
+      (serverList || []).forEach((item) => {
+        if (!deleted.includes(item.id)) map.set(item.id, item);
+      });
+      // Local phone edits take precedence so waking server doesn't wipe active local bills
+      (localList || []).forEach((item) => {
+        if (!deleted.includes(item.id)) map.set(item.id, item);
+      });
+      return Array.from(map.values());
+    };
+
+    return {
+      shop: serverData.shop || Storage.getShopSettings(),
+      items: mergeById(Storage.getItems(), serverData.items),
+      customers: mergeById(Storage.getCustomers(), serverData.customers),
+      sales: mergeById(Storage.getSales(), serverData.sales),
+      receipts: mergeById(Storage.getReceipts(), serverData.receipts),
+      purchases: mergeById(Storage.getPurchases(), serverData.purchases),
+      suppliers: mergeById(Storage.getSuppliers(), serverData.suppliers),
+      supplierPayments: mergeById(Storage.getSupplierPayments(), serverData.supplierPayments),
+      salesReturns: Storage.getSalesReturns(),
+      expenses: Storage.getExpenses(),
+      interestLoans: Storage.getInterestLoans(),
+      interestPayments: Storage.getInterestPayments(),
+    };
+  },
+
   exportBackupData: () => {
     return JSON.stringify({
       shop: Storage.getShopSettings(),
@@ -392,8 +605,14 @@ export const Storage = {
       sales: Storage.getSales(),
       receipts: Storage.getReceipts(),
       purchases: Storage.getPurchases(),
+      suppliers: Storage.getSuppliers(),
+      supplierPayments: Storage.getSupplierPayments(),
+      salesReturns: Storage.getSalesReturns(),
+      expenses: Storage.getExpenses(),
+      interestLoans: Storage.getInterestLoans(),
+      interestPayments: Storage.getInterestPayments(),
       exportDate: new Date().toISOString(),
-      version: '2.0',
+      version: '3.0',
     }, null, 2);
   },
 
@@ -406,6 +625,12 @@ export const Storage = {
       if (Array.isArray(data.sales)) Storage.saveSales(data.sales);
       if (Array.isArray(data.receipts)) Storage.saveReceipts(data.receipts);
       if (Array.isArray(data.purchases)) Storage.savePurchases(data.purchases);
+      if (Array.isArray(data.suppliers)) Storage.saveSuppliers(data.suppliers);
+      if (Array.isArray(data.supplierPayments)) Storage.saveSupplierPayments(data.supplierPayments);
+      if (Array.isArray(data.salesReturns)) Storage.saveSalesReturns(data.salesReturns);
+      if (Array.isArray(data.expenses)) Storage.saveExpenses(data.expenses);
+      if (Array.isArray(data.interestLoans)) Storage.saveInterestLoans(data.interestLoans);
+      if (Array.isArray(data.interestPayments)) Storage.saveInterestPayments(data.interestPayments);
       return true;
     } catch (e) {
       console.error('Failed to restore backup', e);
@@ -420,5 +645,11 @@ export const Storage = {
     Storage.saveSales([]);
     Storage.saveReceipts([]);
     Storage.savePurchases([]);
+    Storage.saveSuppliers([]);
+    Storage.saveSupplierPayments([]);
+    Storage.saveSalesReturns([]);
+    Storage.saveExpenses([]);
+    Storage.saveInterestLoans([]);
+    Storage.saveInterestPayments([]);
   },
 };

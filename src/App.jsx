@@ -34,35 +34,39 @@ export default function App() {
       },
       onDataUpdate: (serverData) => {
         if (!serverData) return;
-        if (serverData.shop) {
-          setShop(serverData.shop);
-          Storage.saveShopSettings(serverData.shop);
+        // Merge safely so phone's active data is never wiped by an ephemeral waking server
+        const merged = Storage.mergeSafeServerData(serverData);
+        if (!merged) return;
+
+        if (merged.shop) {
+          setShop(merged.shop);
+          Storage.saveShopSettings(merged.shop);
         }
-        if (Array.isArray(serverData.items)) {
-          setItems(serverData.items);
-          Storage.saveItems(serverData.items);
+        if (Array.isArray(merged.items)) {
+          setItems(merged.items);
+          Storage.saveItems(merged.items);
         }
-        if (Array.isArray(serverData.customers)) {
-          setCustomers(serverData.customers);
-          Storage.saveCustomers(serverData.customers);
+        if (Array.isArray(merged.customers)) {
+          setCustomers(merged.customers);
+          Storage.saveCustomers(merged.customers);
         }
-        if (Array.isArray(serverData.sales)) {
-          setSales(serverData.sales);
-          Storage.saveSales(serverData.sales);
+        if (Array.isArray(merged.sales)) {
+          setSales(merged.sales);
+          Storage.saveSales(merged.sales);
         }
-        if (Array.isArray(serverData.receipts)) {
-          setReceipts(serverData.receipts);
-          Storage.saveReceipts(serverData.receipts);
+        if (Array.isArray(merged.receipts)) {
+          setReceipts(merged.receipts);
+          Storage.saveReceipts(merged.receipts);
         }
-        if (Array.isArray(serverData.purchases)) {
-          setPurchases(serverData.purchases);
-          Storage.savePurchases(serverData.purchases);
+        if (Array.isArray(merged.purchases)) {
+          setPurchases(merged.purchases);
+          Storage.savePurchases(merged.purchases);
         }
-        if (Array.isArray(serverData.suppliers)) {
-          Storage.saveSuppliers(serverData.suppliers);
+        if (Array.isArray(merged.suppliers)) {
+          Storage.saveSuppliers(merged.suppliers);
         }
-        if (Array.isArray(serverData.supplierPayments)) {
-          Storage.saveSupplierPayments(serverData.supplierPayments);
+        if (Array.isArray(merged.supplierPayments)) {
+          Storage.saveSupplierPayments(merged.supplierPayments);
         }
       },
     });
@@ -137,6 +141,7 @@ export default function App() {
   };
 
   const handleDeleteCustomer = (customerId) => {
+    Storage.recordDeletedId(customerId);
     setCustomers((prev) => {
       const updated = prev.filter((c) => c.id !== customerId);
       Storage.saveCustomers(updated);
@@ -166,6 +171,7 @@ export default function App() {
   };
 
   const handleDeleteSale = (saleId) => {
+    Storage.recordDeletedId(saleId);
     setSales((prev) => {
       const updated = prev.filter((s) => s.id !== saleId);
       Storage.saveSales(updated);
@@ -185,6 +191,7 @@ export default function App() {
   };
 
   const handleDeleteReceipt = (receiptId) => {
+    Storage.recordDeletedId(receiptId);
     setReceipts((prev) => {
       const updated = prev.filter((r) => r.id !== receiptId);
       Storage.saveReceipts(updated);
@@ -204,6 +211,7 @@ export default function App() {
   };
 
   const handleDeletePurchase = (purchaseId) => {
+    Storage.recordDeletedId(purchaseId);
     setPurchases((prev) => {
       const updated = prev.filter((p) => p.id !== purchaseId);
       Storage.savePurchases(updated);
