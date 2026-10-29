@@ -21,6 +21,9 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
 const DIST_DIR = path.join(__dirname, 'dist');
 
+// Unique build version timestamp for instant client auto-updates
+const BUILD_VERSION = Date.now().toString();
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -126,7 +129,7 @@ const broadcast = (message, senderWs = null) => {
 
 wss.on('connection', (ws) => {
   const currentData = readDB();
-  ws.send(JSON.stringify({ type: 'INIT_STATE', data: currentData }));
+  ws.send(JSON.stringify({ type: 'INIT_STATE', data: currentData, buildVersion: BUILD_VERSION }));
 
   ws.on('message', (raw) => {
     try {
@@ -289,16 +292,43 @@ app.post('/api/action', (req, res) => {
   res.json({ success: true, db });
 });
 
+// Version check endpoint for phones to detect new releases instantly
+app.get('/api/version', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.json({ version: BUILD_VERSION });
+});
+
 // Serve the lightning-fast production bundle directly to phones!
 if (fs.existsSync(DIST_DIR)) {
-  app.use(express.static(DIST_DIR, {
-    maxAge: '7d',
-    etag: true,
+  // 1. Assets with hash in filename (e.g. /assets/index-CaLUr09n.css) can be safely cached
+  app.use('/assets', express.static(path.join(DIST_DIR, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
   }));
 
-  // Fallback for SPA routing in Express 5
+  // 2. index.html, sw.js, and manifest.json MUST NEVER BE CACHED so phones always get new versions!
+  app.use(express.static(DIST_DIR, {
+    maxAge: 0,
+    etag: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html') || filePath.endsWith('sw.js') || filePath.endsWith('manifest.json')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Surrogate-Control', 'no-store');
+      }
+    },
+  }));
+
+  // 3. Fallback for SPA routing in Express 5 (Strictly NO-CACHE for index.html)
   app.use((req, res, next) => {
     if (req.method === 'GET' && !req.path.startsWith('/api')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      res.setHeader('Surrogate-Control', 'no-store');
       return res.sendFile(path.join(DIST_DIR, 'index.html'));
     }
     next();

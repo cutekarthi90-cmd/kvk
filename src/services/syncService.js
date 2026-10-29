@@ -87,7 +87,7 @@ export const SyncService = {
           if (msg.type === 'INIT_STATE' || msg.type === 'LIVE_UPDATE') {
             const data = msg.fullData || msg.data;
             if (data && updateCallback) {
-              updateCallback(data);
+              updateCallback(data, msg.buildVersion);
             }
           }
         } catch (e) {

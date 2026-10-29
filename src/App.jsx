@@ -28,12 +28,61 @@ export default function App() {
 
   // 1. Initialize Real-Time Multi-Device Sync on mount
   useEffect(() => {
+    // Check if a newer version of the web app is deployed on server
+    const checkAppVersion = async () => {
+      try {
+        const res = await fetch('/api/version?t=' + Date.now(), { cache: 'no-store' });
+        if (res.ok) {
+          const { version } = await res.json();
+          const currentVersion = localStorage.getItem('kvk_bundle_version');
+          if (currentVersion && version && currentVersion !== version) {
+            console.log('New app version detected, reloading...');
+            localStorage.setItem('kvk_bundle_version', version);
+            if ('caches' in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((k) => caches.delete(k)));
+            }
+            window.location.reload();
+          } else if (version) {
+            localStorage.setItem('kvk_bundle_version', version);
+          }
+        }
+      } catch {}
+    };
+
+    checkAppVersion();
+    const handleFocus = () => checkAppVersion();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') checkAppVersion();
+    });
+
     SyncService.init({
       onStatusChange: (status) => {
         setSyncStatus(status);
       },
-      onDataUpdate: (serverData) => {
+      onDataUpdate: (serverData, buildVersion) => {
         if (!serverData) return;
+
+        // Auto-reload if a new build version was deployed on Render
+        if (buildVersion) {
+          const currentVersion = localStorage.getItem('kvk_bundle_version');
+          if (currentVersion && currentVersion !== buildVersion) {
+            localStorage.setItem('kvk_bundle_version', buildVersion);
+            if ('caches' in window) {
+              caches.keys().then((names) => {
+                Promise.all(names.map((n) => caches.delete(n))).finally(() => {
+                  window.location.reload();
+                });
+              });
+            } else {
+              window.location.reload();
+            }
+            return;
+          }
+          localStorage.setItem('kvk_bundle_version', buildVersion);
+        }
+
         // Merge safely so phone's active data is never wiped by an ephemeral waking server
         const merged = Storage.mergeSafeServerData(serverData);
         if (!merged) return;
@@ -96,6 +145,7 @@ export default function App() {
     });
 
     return () => {
+      window.removeEventListener('focus', handleFocus);
       if (unsubFirebase) unsubFirebase();
     };
   }, []);
