@@ -76,8 +76,11 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
+  const isQ = sale.isQSale || sale.billType === 'Q_SALE';
+  const billTitle = isQ ? 'ESTIMATE / QUOTATION' : 'CASH / CREDIT BILL';
+  const headerTheme = isQ ? [109, 40, 217] : [22, 101, 192];
 
-  drawShopHeader(doc, shop, 'CASH / CREDIT BILL', [22, 101, 192]);
+  drawShopHeader(doc, shop, billTitle, headerTheme);
 
   // --- Customer & Invoice Info ---
   const startMetaY = 48;
@@ -114,10 +117,13 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
   doc.setTextColor(71, 85, 105);
-  doc.text('Bill No:', pageWidth - 68, startMetaY + 7);
+  doc.text(isQ ? 'Q-Ref No:' : 'Bill No:', pageWidth - 68, startMetaY + 7);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(22, 101, 192);
-  doc.text(`No. ${sale.invoiceNo || '1'}`, rightX - 4, startMetaY + 7, { align: 'right' });
+  doc.setTextColor(headerTheme[0], headerTheme[1], headerTheme[2]);
+  const displayBillNo = String(sale.invoiceNo || '1').startsWith('Q-')
+    ? String(sale.invoiceNo)
+    : (isQ ? `Q-${sale.invoiceNo}` : `No. ${sale.invoiceNo || '1'}`);
+  doc.text(displayBillNo, rightX - 4, startMetaY + 7, { align: 'right' });
 
   doc.setTextColor(71, 85, 105);
   doc.setFont('helvetica', 'bold');

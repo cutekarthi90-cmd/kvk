@@ -35,12 +35,19 @@ export const formatMonthLabel = (monthStr) => {
 
 /**
  * Filter sales and GST purchases for a specific month
- * IMPORTANT AUDITOR RULE: Q-Purchases are 100% EXCLUDED from the auditor report!
+ * IMPORTANT AUDITOR RULE: Both Q-Sales and Q-Purchases are 100% EXCLUDED from the auditor report!
  */
 export const getMonthlyGSTData = (monthStr, sales = [], purchases = []) => {
-  const monthSales = sales.filter((s) => (s.date || '').startsWith(monthStr));
-  
-  // Exclude all Q Purchases (Kachha / Quotation purchases)
+  // Exclude all Q Sales (Kachha / Quotation sales) from GSTR-1
+  const monthGstSales = sales.filter(
+    (s) => (s.date || '').startsWith(monthStr) && !s.isQSale && s.billType !== 'Q_SALE'
+  );
+
+  const excludedQSales = sales.filter(
+    (s) => (s.date || '').startsWith(monthStr) && (s.isQSale || s.billType === 'Q_SALE')
+  );
+
+  // Exclude all Q Purchases (Kachha / Quotation purchases) from GSTR-2B
   const monthGstPurchases = purchases.filter(
     (p) => (p.date || '').startsWith(monthStr) && !p.isQPurchase && p.billType !== 'Q_PURCHASE'
   );
@@ -49,9 +56,16 @@ export const getMonthlyGSTData = (monthStr, sales = [], purchases = []) => {
     (p) => (p.date || '').startsWith(monthStr) && (p.isQPurchase || p.billType === 'Q_PURCHASE')
   );
 
-  // Sales Totals
-  const totalSalesAmount = monthSales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
-  const totalSalesBags = monthSales.reduce(
+  // Regular GST Sales Totals
+  const totalSalesAmount = monthGstSales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
+  const totalSalesBags = monthGstSales.reduce(
+    (sum, s) => sum + (s.items || []).reduce((isum, i) => isum + (Number(i.qty) || 0), 0),
+    0
+  );
+
+  // Q Sales Totals (for Mandi owner's internal audit)
+  const totalQSalesAmount = excludedQSales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
+  const totalQSalesBags = excludedQSales.reduce(
     (sum, s) => sum + (s.items || []).reduce((isum, i) => isum + (Number(i.qty) || 0), 0),
     0
   );
@@ -74,11 +88,14 @@ export const getMonthlyGSTData = (monthStr, sales = [], purchases = []) => {
   return {
     monthStr,
     monthLabel: formatMonthLabel(monthStr),
-    sales: monthSales,
-    gstPurchases: monthGstPurchases,
+    sales: monthGstSales, // Only official GST sales to Auditor!
+    gstPurchases: monthGstPurchases, // Only official GST purchases to Auditor!
+    excludedQSales,
     excludedQPurchases,
     totalSalesAmount,
     totalSalesBags,
+    totalQSalesAmount,
+    totalQSalesBags,
     totalGstPurchaseAmount,
     totalGstPurchaseBags,
     totalQPurchaseAmount,
@@ -100,8 +117,9 @@ export const exportMonthlyGSTExcel = (gstData, shop = {}) => {
   rows.push([`"Generated on: ${new Date().toLocaleDateString('en-IN')}"`]);
   rows.push([]);
 
-  // SECTION 1: OUTWARD SUPPLIES (SALES)
-  rows.push(['"--- SECTION 1: GSTR-1 OUTWARD SUPPLIES (SALES BILLS) ---"']);
+  // SECTION 1: OUTWARD SUPPLIES (SALES) - STRICTLY EXCLUDING Q SALES
+  rows.push(['"--- SECTION 1: GSTR-1 OUTWARD SUPPLIES (REGULAR GST SALES BILLS ONLY) ---"']);
+  rows.push(['"*NOTE: Unofficial Q-Sales (Quotations) are STRICTLY EXCLUDED from this report*"']);
   rows.push([
     '"S.No"',
     '"Date"',
@@ -207,10 +225,10 @@ export const exportMonthlyGSTExcel = (gstData, shop = {}) => {
   // SECTION 3: MONTHLY GST AUDITOR SUMMARY
   rows.push(['"--- SECTION 3: MONTHLY GST EXECUTIVE AUDITOR SUMMARY ---"']);
   rows.push(['"Description"', '"Amount (Rs.)"']);
-  rows.push(['"Total Outward Supplies (Gross Sales Turnover)"', totalSalesAmount.toFixed(2)]);
-  rows.push(['"Total Inward Supplies (Gross GST Purchases Turnover)"', totalGstPurchaseAmount.toFixed(2)]);
-  rows.push(['"Total Sales Invoices Count"', sales.length]);
-  rows.push(['"Total GST Purchase Bills Count"', gstPurchases.length]);
+  rows.push(['"Total Outward Supplies (Gross Regular GST Sales Turnover)"', totalSalesAmount.toFixed(2)]);
+  rows.push(['"Total Inward Supplies (Gross Regular GST Purchases Turnover)"', totalGstPurchaseAmount.toFixed(2)]);
+  rows.push(['"Total Regular GST Sales Invoices Count"', sales.length]);
+  rows.push(['"Total Regular GST Purchase Bills Count"', gstPurchases.length]);
 
   // Convert array of rows to CSV string
   const csvContent = rows.map((e) => e.join(',')).join('\r\n');
@@ -243,11 +261,11 @@ export const getAuditorWhatsAppText = (gstData, shop = {}) => {
     `📊 *AUDITOR OFFICE MONTHLY GST REPORT*\n` +
     `📅 Period: *${monthLabel.toUpperCase()}*\n` +
     `━━━━━━━━━━━━━━━━━━\n\n` +
-    `*1. OUTWARD SUPPLIES (SALES)*\n` +
-    `• Total Invoices: *${sales.length} Bills*\n` +
+    `*1. OUTWARD SUPPLIES (REGULAR GST SALES)*\n` +
+    `• Total GST Invoices: *${sales.length} Bills*\n` +
     `• Total Bags Sold: *${gstData.totalSalesBags} Bags (50kg)*\n` +
-    `• Gross Sales Turnover: *Rs. ${totalSalesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*\n\n` +
-    `*2. INWARD SUPPLIES (PURCHASES)*\n` +
+    `• Gross GST Sales Turnover: *Rs. ${totalSalesAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*\n\n` +
+    `*2. INWARD SUPPLIES (REGULAR GST PURCHASES)*\n` +
     `• Total GST Purchase Bills: *${gstPurchases.length} Bills*\n` +
     `• Total Bags Purchased: *${gstData.totalGstPurchaseBags} Bags*\n` +
     `• Gross GST Purchase Turnover: *Rs. ${totalGstPurchaseAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}*\n\n` +

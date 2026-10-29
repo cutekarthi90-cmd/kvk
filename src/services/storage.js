@@ -209,13 +209,33 @@ export const Storage = {
 
   /**
    * Auto-increment Bill No per Financial Year!
-   * E.g. When transitioning from 2026-2027 to 2027-2028, restarts at 1!
+   * - Regular GST Bills: 1, 2, 3... (strictly sequential for tax compliance)
+   * - Q Sales (Quotation): Q-1, Q-2, Q-3... (separate sequence, excluded from GST)
+   * Restarts at 1 when FY changes (e.g. 01/04/2027)!
    */
-  getNextInvoiceNo: (sales = [], targetDate = null) => {
+  getNextInvoiceNo: (sales = [], targetDate = null, isQSale = false) => {
     const fy = getFinancialYear(targetDate || new Date().toISOString().split('T')[0]);
-    const fySales = (sales || []).filter((s) => getFinancialYear(s.date) === fy);
-    const maxNo = fySales.reduce((max, s) => Math.max(max, Number(s.invoiceNo) || 0), 0);
-    return maxNo + 1;
+    if (isQSale) {
+      const qSales = (sales || []).filter(
+        (s) => getFinancialYear(s.date) === fy && (s.isQSale || s.billType === 'Q_SALE')
+      );
+      const maxNo = qSales.reduce((max, s) => {
+        const clean = String(s.invoiceNo || '').replace(/[^0-9]/g, '');
+        const num = parseInt(clean, 10) || 0;
+        return Math.max(max, num);
+      }, 0);
+      return maxNo + 1;
+    } else {
+      const regularSales = (sales || []).filter(
+        (s) => getFinancialYear(s.date) === fy && !s.isQSale && s.billType !== 'Q_SALE'
+      );
+      const maxNo = regularSales.reduce((max, s) => {
+        const clean = String(s.invoiceNo || '').replace(/[^0-9]/g, '');
+        const num = parseInt(clean, 10) || 0;
+        return Math.max(max, num);
+      }, 0);
+      return maxNo + 1;
+    }
   },
 
   // --- RECEIPTS (Customer Payments) ---
@@ -487,18 +507,20 @@ export const Storage = {
     }
 
     sales.forEach((s) => {
+      const isQ = s.isQSale || s.billType === 'Q_SALE';
       transactions.push({
         id: s.id,
         date: s.date,
         createdAt: s.createdAt || s.date,
-        type: 'SALE',
+        type: isQ ? 'Q_SALE' : 'SALE',
         refNo: String(s.invoiceNo || '1'),
-        description: `Sale: ${s.items.length} items (${s.items.map((i) => i.name).slice(0, 2).join(', ')}${s.items.length > 2 ? '...' : ''})`,
+        description: `${isQ ? '📦 Q-Sale' : 'Sale'}: ${s.items.length} items (${s.items.map((i) => i.name).slice(0, 2).join(', ')}${s.items.length > 2 ? '...' : ''})`,
         debit: Number(s.grandTotal) || 0,
         credit: 0,
         paidAmount: Number(s.paidAmount) || 0,
         items: s.items,
         raw: s,
+        isQSale: isQ,
       });
 
       if (Number(s.paidAmount) > 0) {

@@ -17,7 +17,8 @@ import {
   Send,
   X,
   Package,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';
@@ -42,7 +43,8 @@ export default function SaleScreen({
   const [paymentStatus, setPaymentStatus] = useState('CREDIT'); // 'CREDIT' | 'PAID' | 'PARTIAL'
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMode, setPaymentMode] = useState('Cash');
-  const [activeView, setActiveView] = useState('create'); // 'create' | 'history'
+  const [activeView, setActiveView] = useState('create'); // 'create' | 'history' | 'return'
+  const [isQSale, setIsQSale] = useState(false); // Q-Sales Toggle (Regular GST vs Q Sale)
   const [historySearch, setHistorySearch] = useState('');
   const [sharing, setSharing] = useState(false);
   const [toast, setToast] = useState('');
@@ -69,9 +71,10 @@ export default function SaleScreen({
   const [returnNotes, setReturnNotes] = useState('');
 
   // Bill number auto-incrementing PER FINANCIAL YEAR (restarts from 1 when FY changes!)
+  // Separates regular GST bills and Q-Sales so sequences never collide
   const autoInvoiceNo = useMemo(() => {
-    return String(Storage.getNextInvoiceNo(sales, date));
-  }, [sales, date]);
+    return String(Storage.getNextInvoiceNo(sales, date, isQSale));
+  }, [sales, date, isQSale]);
 
   const nextInvoiceNo = autoInvoiceNo;
 
@@ -139,6 +142,39 @@ export default function SaleScreen({
     });
   }, [filteredSalesHistory]);
 
+  // SALES SUMMARY: Regular GST vs Q Sales breakdown
+  const salesSummary = useMemo(() => {
+    let grossTotal = 0;
+    let regularTotal = 0;
+    let qSalesTotal = 0;
+    let totalBags = 0;
+    let qSalesCount = 0;
+
+    sortedSalesHistory.forEach((s) => {
+      const grand = Number(s.grandTotal) || 0;
+      grossTotal += grand;
+      (s.items || []).forEach((i) => {
+        totalBags += Number(i.qty) || 0;
+      });
+
+      if (s.isQSale || s.billType === 'Q_SALE') {
+        qSalesTotal += grand;
+        qSalesCount += 1;
+      } else {
+        regularTotal += grand;
+      }
+    });
+
+    return {
+      grossTotal,
+      regularTotal,
+      qSalesTotal,
+      totalBags,
+      qSalesCount,
+      regularCount: sortedSalesHistory.length - qSalesCount,
+    };
+  }, [sortedSalesHistory]);
+
   // Cart operations
   const handleAddItem = (item) => {
     setCart((prev) => {
@@ -194,6 +230,7 @@ export default function SaleScreen({
 
   // Helper to construct WhatsApp / SMS text
   const getBillMessageText = (sale, customer) => {
+    const isQ = sale.isQSale || sale.billType === 'Q_SALE';
     const itemsList = (sale.items || [])
       .map((i, idx) => `${idx + 1}. *${i.name}*\n   ${i.qty} Bag x Rs.${Number(i.price).toFixed(2)} = *Rs. ${(Number(i.qty) * Number(i.price)).toFixed(2)}*`)
       .join('\n\n');
@@ -201,14 +238,18 @@ export default function SaleScreen({
     const totalAmt = Number(sale.grandTotal).toFixed(2);
     const paidAmt = Number(sale.paidAmount || 0).toFixed(2);
     const balDue = Math.max(0, Number(sale.grandTotal) - Number(sale.paidAmount || 0)).toFixed(2);
+    const billTitle = isQ ? '*ESTIMATE / QUOTATION BILL*' : '*CASH / CREDIT BILL*';
+    const billNoText = isQ
+      ? `Q-Bill No: *${String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : `Q-${sale.invoiceNo}`}*`
+      : `Bill No: *No. ${sale.invoiceNo}*`;
 
     return (
       `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
       `No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI\n` +
       `Cell: 94866 - 68732 / 94439 - 95160\n\n` +
-      `*CASH / CREDIT BILL*\n` +
+      `${billTitle}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `Bill No: *No. ${sale.invoiceNo}*\n` +
+      `${billNoText}\n` +
       `Date: ${formatDate(sale.date)}\n` +
       `Customer: *${customer?.name || sale.customerName}*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
@@ -268,7 +309,10 @@ export default function SaleScreen({
     };
     try {
       const doc = generateSaleInvoicePDF(saleToShare, customer, shop);
-      const fileName = `${shop.name || 'Bill'}_No_${saleToShare.invoiceNo}.pdf`.replace(/\s+/g, '_');
+      const isQ = saleToShare.isQSale || saleToShare.billType === 'Q_SALE';
+      const cleanNo = String(saleToShare.invoiceNo).replace(/[^a-zA-Z0-9]/g, '_');
+      const prefix = isQ ? 'Q_Bill' : 'Bill';
+      const fileName = `${shop.name || 'KVK'}_${prefix}_${cleanNo}.pdf`.replace(/\s+/g, '_');
       downloadPdfFile(doc, fileName);
       showToast('PDF downloaded successfully!');
     } catch (err) {
@@ -295,9 +339,15 @@ export default function SaleScreen({
         ? Math.min(grandTotal, Number(paidAmount) || 0)
         : 0;
 
+    const finalInvoiceNo = isQSale
+      ? (customInvoiceNo ? (customInvoiceNo.startsWith('Q-') ? customInvoiceNo : `Q-${customInvoiceNo}`) : `Q-${autoInvoiceNo}`)
+      : (customInvoiceNo || autoInvoiceNo);
+
     const newSale = {
       id: `sale-${Date.now()}`,
-      invoiceNo: nextInvoiceNo,
+      invoiceNo: finalInvoiceNo,
+      isQSale,
+      billType: isQSale ? 'Q_SALE' : 'REGULAR',
       date,
       createdAt: new Date().toISOString(),
       customerId: selectedCustomerId,
@@ -319,7 +369,7 @@ export default function SaleScreen({
 
     onSaveSale(newSale);
     setLastSavedBill(newSale);
-    showToast(`Bill No. ${newSale.invoiceNo} Saved!`);
+    showToast(`${isQSale ? 'Q-Sale' : 'Bill'} No. ${newSale.invoiceNo} Saved!`);
 
     // Automatically trigger WhatsApp share!
     await handleShareWhatsApp(newSale);
@@ -328,9 +378,13 @@ export default function SaleScreen({
 
   const handlePreviewPdf = (saleToPreview) => {
     const sale = saleToPreview || {
-      invoiceNo: nextInvoiceNo,
+      invoiceNo: isQSale ? `Q-${autoInvoiceNo}` : autoInvoiceNo,
+      isQSale,
+      billType: isQSale ? 'Q_SALE' : 'REGULAR',
       date,
       customerId: selectedCustomerId,
+      customerName: selectedCustomer?.name,
+      customerPhone: selectedCustomer?.phone,
       items: cart.map((i) => ({
         ...i,
         qty: Math.max(1, Number(i.qty) || 1),
@@ -552,402 +606,6 @@ export default function SaleScreen({
         </div>
       )}
 
-      {/* VIEW 3: SALES RETURN (விற்பனை திருப்பம்) */}
-      {activeView === 'return' && (
-        <div className="p-3 space-y-3 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveSalesReturn} className="space-y-3">
-            {/* Top Bar: Return No & Date */}
-            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-amber-600 block">
-                  Return Voucher No.
-                </span>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <span className="text-xs font-bold text-slate-400">#SR-</span>
-                  <span className="font-black text-amber-800 text-lg">
-                    {salesReturns.length + 1}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  Return Date
-                </span>
-                <input
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Customer Selection Card for Return */}
-            <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs space-y-2">
-              <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
-                <User className="w-4 h-4 text-amber-600" />
-                Customer Returning Goods (வாடிக்கையாளர்) *
-              </label>
-
-              {selectedReturnCustomer ? (
-                <div className="p-3 bg-amber-50 rounded-xl border-2 border-amber-400 flex items-center justify-between text-xs animate-in fade-in duration-150">
-                  <div>
-                    <div className="text-[10px] uppercase font-black text-amber-800 tracking-wider flex items-center gap-1">
-                      <CheckCircle className="w-3.5 h-3.5 text-amber-600" />
-                      Selected Customer
-                    </div>
-                    <div className="font-black text-slate-900 text-base mt-0.5">
-                      {selectedReturnCustomer.name}
-                    </div>
-                    <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5 font-semibold">
-                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                      {selectedReturnCustomer.phone}
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <span className="text-[10px] text-slate-500 block font-bold uppercase">
-                      Current Due
-                    </span>
-                    <span className="font-black text-sm text-red-600 block">
-                      {formatCurrency(Storage.getCustomerBalance(selectedReturnCustomer.id).netDue)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReturnCustomerId('');
-                        setReturnCustomerSearch('');
-                      }}
-                      className="mt-1 px-2.5 py-1 bg-white hover:bg-red-50 text-slate-700 hover:text-red-600 border border-slate-300 rounded-lg text-xs font-bold shadow-2xs flex items-center gap-1"
-                    >
-                      <X className="w-3 h-3" />
-                      Change
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
-                    <input
-                      type="text"
-                      placeholder="Type name to search customer for return..."
-                      value={returnCustomerSearch}
-                      onChange={(e) => setReturnCustomerSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border-2 border-amber-200 focus:border-amber-600 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none"
-                    />
-                    {returnCustomerSearch && (
-                      <button
-                        type="button"
-                        onClick={() => setReturnCustomerSearch('')}
-                        className="absolute right-3 top-2.5 p-1 text-slate-400 hover:text-slate-600"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-
-                  {returnCustomerSearch.trim() ? (
-                    <div className="space-y-1.5 max-h-56 overflow-y-auto border border-amber-200 rounded-xl p-1 bg-amber-50/40">
-                      {filteredReturnCustomers.length === 0 ? (
-                        <div className="p-3 text-center text-xs text-slate-500">
-                          Customer "{returnCustomerSearch}" not found.
-                        </div>
-                      ) : (
-                        filteredReturnCustomers.map((c) => (
-                          <button
-                            key={c.id}
-                            type="button"
-                            onClick={() => {
-                              setReturnCustomerId(c.id);
-                              setReturnCustomerSearch('');
-                            }}
-                            className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-400 flex items-center justify-between shadow-2xs transition-all active:scale-98"
-                          >
-                            <div>
-                              <div className="font-black text-slate-900 text-sm">{c.name}</div>
-                              <div className="text-xs text-slate-600 flex items-center gap-1 mt-0.5">
-                                <Phone className="w-3 h-3 text-emerald-600" />
-                                {c.phone}
-                              </div>
-                            </div>
-                            <span className="text-[10px] text-amber-700 font-bold">
-                              Select Customer →
-                            </span>
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  ) : (
-                    <select
-                      value={returnCustomerId}
-                      onChange={(e) => setReturnCustomerId(e.target.value)}
-                      className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                    >
-                      <option value="">-- Or Choose Customer from List ({customers.length}) --</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.phone})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Tap Item to Add Return */}
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase">
-                  Tap Item Returned by Customer
-                </span>
-                <span className="text-[11px] text-amber-600 font-semibold">
-                  Unit: 50kg Bag
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {items.map((item) => {
-                  const inCart = returnCart.find((i) => i.id === item.id);
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleAddReturnItem(item)}
-                      className={`p-2.5 rounded-xl border text-left transition-all active:scale-95 flex flex-col justify-between min-h-[75px] ${
-                        inCart
-                          ? 'border-amber-600 bg-amber-50/50 shadow-xs ring-1 ring-amber-500'
-                          : 'border-slate-200 bg-white hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="font-extrabold text-slate-900 text-xs line-clamp-2 leading-snug">
-                        {item.name}
-                      </div>
-                      <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100">
-                        <span className="text-xs font-black text-amber-700">₹{item.price}</span>
-                        {inCart && (
-                          <span className="px-1.5 py-0.5 bg-amber-600 text-white text-[10px] font-black rounded-full">
-                            {inCart.qty} Bag
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Returned Items Table */}
-            {returnCart.length > 0 && (
-              <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
-                <span className="text-xs font-bold text-slate-700 uppercase block">
-                  Items to Return ({returnCart.length})
-                </span>
-
-                <div className="space-y-2">
-                  {returnCart.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-2.5 bg-amber-50/40 rounded-xl border border-amber-200 flex items-center justify-between gap-2 text-xs"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold text-slate-900 truncate">{item.name}</div>
-                        <div className="flex items-center gap-1 mt-1 text-slate-600">
-                          <span>Return Rate ₹</span>
-                          <input
-                            type="number"
-                            value={item.price}
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => handleUpdateReturnPrice(item.id, e.target.value)}
-                            className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-bold"
-                          />
-                          <span>/ Bag</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const cur = Number(item.qty) || 1;
-                            if (cur > 1) handleUpdateReturnQty(item.id, cur - 1);
-                            else handleRemoveReturnItem(item.id);
-                          }}
-                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
-                        >
-                          <Minus className="w-3.5 h-3.5" />
-                        </button>
-                        <input
-                          type="number"
-                          value={item.qty}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => handleUpdateReturnQty(item.id, e.target.value)}
-                          className="w-12 py-1 text-center font-black bg-white border border-slate-300 rounded-lg text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateReturnQty(item.id, (Number(item.qty) || 0) + 1)}
-                          className="w-7 h-7 bg-white rounded-lg border border-slate-300 flex items-center justify-center text-slate-700"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-
-                      <div className="text-right shrink-0 min-w-[60px]">
-                        <div className="font-black text-amber-900">
-                          ₹{((Number(item.qty) || 0) * (Number(item.price) || 0)).toFixed(2)}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveReturnItem(item.id)}
-                          className="text-[10px] text-red-500 hover:text-red-700 mt-1"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Return Reason & Notes */}
-            <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Return Reason (காரணம்)
-                </label>
-                <select
-                  value={returnReason}
-                  onChange={(e) => setReturnReason(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
-                >
-                  <option value="Quality issue (தரம் சரியில்லை)">Quality issue (தரம் சரியில்லை)</option>
-                  <option value="Damaged bags (சேதமடைந்த பைகள்)">Damaged bags (சேதமடைந்த பைகள்)</option>
-                  <option value="Excess bags returned (கூடுதல் தானியம்)">Excess bags returned (கூடுதல் தானியம்)</option>
-                  <option value="Wrong item supplied (தவறான பொருள்)">Wrong item supplied (தவறான பொருள்)</option>
-                  <option value="Other / இதர காரணம்">Other / இதர காரணம்</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
-                  Notes
-                </label>
-                <input
-                  type="text"
-                  placeholder="Optional notes..."
-                  value={returnNotes}
-                  onChange={(e) => setReturnNotes(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:outline-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                <span className="text-sm font-bold text-slate-800">Total Credit Amount:</span>
-                <span className="text-2xl font-black text-amber-600">
-                  {formatCurrency(returnTotal)}
-                </span>
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all"
-              >
-                <RotateCcw className="w-5 h-5" />
-                <span>SAVE SALES RETURN & CREDIT CUSTOMER</span>
-              </button>
-            </div>
-          </form>
-
-          {/* Past Sales Returns List */}
-          <div className="space-y-2 pt-2">
-            <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-              <RotateCcw className="w-4 h-4 text-amber-600" />
-              Past Sales Returns ({salesReturns.length})
-            </h4>
-
-            {salesReturns.length === 0 ? (
-              <div className="bg-white rounded-xl p-8 text-center border border-slate-200 text-slate-400 text-xs">
-                No sales returns recorded yet.
-              </div>
-            ) : (
-              salesReturns.map((ret) => (
-                <div
-                  key={ret.id}
-                  className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2 text-xs"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-slate-900 text-sm">
-                          Voucher #SR-{ret.returnNo}
-                        </span>
-                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800">
-                          {ret.reason?.split(' ')[0] || 'Return'}
-                        </span>
-                      </div>
-                      <div className="font-bold text-slate-700 mt-0.5">
-                        {ret.customerName} {ret.customerPhone ? `• ${ret.customerPhone}` : ''}
-                      </div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">
-                        {(ret.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0">
-                      <div className="font-black text-amber-700 text-base">
-                        {formatCurrency(ret.totalAmount)}
-                      </div>
-                      <div className="text-[11px] text-slate-400">{formatDate(ret.date)}</div>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100 pt-2 flex items-center justify-between">
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSalesReturn(ret.id)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg text-xs flex items-center gap-1"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Delete</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const itemsList = (ret.items || [])
-                          .map((i, idx) => `${idx + 1}. *${i.name}*\n   Returned: ${i.qty} Bag @ Rs.${i.price} = *Rs.${(i.qty * i.price).toFixed(2)}*`)
-                          .join('\n');
-                        const msg =
-                          `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
-                          `━━━━━━━━━━━━━━━━━━\n` +
-                          `↩️ *SALES RETURN VOUCHER (விற்பனை திருப்பம்)*\n` +
-                          `━━━━━━━━━━━━━━━━━━\n` +
-                          `Voucher: *#SR-${ret.returnNo}*\n` +
-                          `Date: ${formatDate(ret.date)}\n` +
-                          `Customer: *${ret.customerName}*\n` +
-                          `━━━━━━━━━━━━━━━━━━\n` +
-                          `${itemsList}\n` +
-                          `━━━━━━━━━━━━━━━━━━\n` +
-                          `*Total Credited: Rs. ${Number(ret.totalAmount).toFixed(2)}*\n` +
-                          `Thank you!`;
-                        openDirectWhatsApp(ret.customerPhone, msg);
-                      }}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
-                    >
-                      <Share2 className="w-3.5 h-3.5" />
-                      <span>WhatsApp Voucher</span>
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
       {/* View Switcher: New Bill vs Sales Return vs Past Invoices */}
       <div className="p-3 bg-white border-b border-slate-200 flex gap-1.5">
         <button
@@ -1019,12 +677,50 @@ export default function SaleScreen({
             />
           </div>
 
+          {/* Sales Summary Card */}
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-sm space-y-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-slate-400 font-bold uppercase tracking-wider">
+                Sales Summary ({selectedFY === 'ALL' ? 'All FY' : `FY ${selectedFY}`})
+              </span>
+              <span className="text-emerald-400 font-black text-sm">
+                {salesSummary.totalBags} Bags (50kg)
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-1 border-t border-slate-800 text-center">
+              <div className="bg-slate-800/80 p-2 rounded-xl">
+                <span className="text-[10px] text-slate-400 font-bold block">Gross Sales</span>
+                <span className="text-xs font-black text-white block mt-0.5">
+                  {formatCurrency(salesSummary.grossTotal)}
+                </span>
+                <span className="text-[9px] text-slate-400">{sortedSalesHistory.length} Bills</span>
+              </div>
+              <div className="bg-blue-950/60 p-2 rounded-xl border border-blue-800/40">
+                <span className="text-[10px] text-blue-300 font-bold block">Regular GST</span>
+                <span className="text-xs font-black text-blue-300 block mt-0.5">
+                  {formatCurrency(salesSummary.regularTotal)}
+                </span>
+                <span className="text-[9px] text-blue-400">{salesSummary.regularCount} Bills</span>
+              </div>
+              <div className="bg-purple-950/60 p-2 rounded-xl border border-purple-800/40">
+                <span className="text-[10px] text-purple-300 font-bold block">Q Sales</span>
+                <span className="text-xs font-black text-purple-300 block mt-0.5">
+                  {formatCurrency(salesSummary.qSalesTotal)}
+                </span>
+                <span className="text-[9px] text-purple-400">{salesSummary.qSalesCount} Bills</span>
+              </div>
+            </div>
+          </div>
+
           {sortedSalesHistory.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-sm">
               No bills found.
             </div>
           ) : (
-            sortedSalesHistory.map((sale) => (
+            sortedSalesHistory.map((sale) => {
+              const isQ = sale.isQSale || sale.billType === 'Q_SALE';
+              return (
               <div
                 key={sale.id}
                 className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs flex flex-col gap-2.5"
@@ -1032,9 +728,14 @@ export default function SaleScreen({
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-black text-slate-900 text-base">
-                        No. {sale.invoiceNo}
+                      <span className={`font-black text-base ${isQ ? 'text-purple-900' : 'text-slate-900'}`}>
+                        {String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : (isQ ? `Q-${sale.invoiceNo}` : `No. ${sale.invoiceNo}`)}
                       </span>
+                      {isQ && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-100 text-purple-800 border border-purple-200">
+                          📦 Q-Sale
+                        </span>
+                      )}
                       <span
                         className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
                           sale.paymentStatus === 'PAID'
@@ -1099,23 +800,62 @@ export default function SaleScreen({
                   </div>
                 </div>
               </div>
-            ))
-          )}
-        </div>
-      )}
+            );
+          })
+        )}
+      </div>
+    )}
 
       {/* VIEW 2: CREATE BILL FORM */}
       {activeView === 'create' && (
         <div className="p-3 space-y-3">
+          {/* Bill Type Toggle: Regular GST Bill vs Q Sales */}
+          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex gap-1">
+            <button
+              type="button"
+              onClick={() => setIsQSale(false)}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                !isQSale
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldCheck className="w-4 h-4" />
+              <span>🏢 Regular GST Bill</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsQSale(true)}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+                isQSale
+                  ? 'bg-purple-700 text-white shadow-xs'
+                  : 'text-purple-700 hover:bg-purple-50'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>📦 Q Sales (Quotation)</span>
+            </button>
+          </div>
+
+          {/* Q Sales Notice */}
+          {isQSale && (
+            <div className="p-2.5 bg-purple-50 rounded-xl border border-purple-200 flex items-start gap-2 text-xs text-purple-900 animate-in fade-in duration-150">
+              <span className="font-bold shrink-0">📦 Q Sales Note:</span>
+              <span>
+                Grain stock-la bags கழிவு ஆகும் (-Stock), customer balance-lum பாக்கி ஏறும். <strong>Auditor GST Report-la ithu pogathu (Excludes strictly).</strong>
+              </span>
+            </div>
+          )}
+
           {/* Top Bar: Bill No & Date */}
           <div className="bg-white rounded-xl p-3 border border-slate-200 shadow-xs flex items-center justify-between gap-3">
             <div>
               <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Bill Number (தானாக ஏறும்)
+                {isQSale ? 'Q-Sale Ref No. (தானாக ஏறும்)' : 'Bill Number (தானாக ஏறும்)'}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs font-bold text-slate-400">No.</span>
-                <span className="font-black text-blue-600 text-lg">
+                <span className="text-xs font-bold text-slate-400">{isQSale ? 'Q-' : 'No.'}</span>
+                <span className={`font-black text-lg ${isQSale ? 'text-purple-700' : 'text-blue-600'}`}>
                   {autoInvoiceNo}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">
@@ -1586,10 +1326,12 @@ export default function SaleScreen({
               type="button"
               disabled={sharing}
               onClick={handleSingleSaveAndSend}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-base shadow-lg flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
+              className={`w-full py-4 text-white rounded-xl font-black text-base shadow-lg flex items-center justify-center gap-2 active:scale-[0.99] transition-all ${
+                isQSale ? 'bg-purple-700 hover:bg-purple-800' : 'bg-emerald-600 hover:bg-emerald-700'
+              }`}
             >
               <CheckCircle className="w-5 h-5" />
-              <span>{sharing ? 'Sending...' : 'SAVE & SEND BILL (சேமித்து அனுப்புக)'}</span>
+              <span>{sharing ? 'Sending...' : `SAVE & SEND ${isQSale ? 'Q-SALE' : 'BILL'} (சேமித்து அனுப்புக)`}</span>
             </button>
 
             <button

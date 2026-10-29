@@ -210,15 +210,27 @@ export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStat
           </div>
         </div>
 
-        {/* Notice of Q Purchases Excluded */}
-        <div className="p-2 bg-purple-950/70 rounded-xl border border-purple-600/40 text-[11px] flex items-center justify-between text-purple-200">
-          <div className="flex items-center gap-1.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Q-Purchases Excluded from Auditor:</span>
+        {/* Notice of Q Purchases & Q Sales Excluded */}
+        <div className="space-y-1.5">
+          <div className="p-2 bg-purple-950/70 rounded-xl border border-purple-600/40 text-[11px] flex items-center justify-between text-purple-200">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Q-Sales Excluded from Auditor:</span>
+            </div>
+            <span className="font-black text-purple-300">
+              {gstData.excludedQSales?.length || 0} Bills ({formatCurrency(gstData.totalQSalesAmount || 0)})
+            </span>
           </div>
-          <span className="font-black text-purple-300">
-            {gstData.excludedQPurchases.length} Bills ({formatCurrency(gstData.totalQPurchaseAmount)})
-          </span>
+
+          <div className="p-2 bg-purple-950/70 rounded-xl border border-purple-600/40 text-[11px] flex items-center justify-between text-purple-200">
+            <div className="flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Q-Purchases Excluded from Auditor:</span>
+            </div>
+            <span className="font-black text-purple-300">
+              {gstData.excludedQPurchases.length} Bills ({formatCurrency(gstData.totalQPurchaseAmount)})
+            </span>
+          </div>
         </div>
 
         {/* Action Buttons: Download Excel & Share to Auditor on WhatsApp */}
