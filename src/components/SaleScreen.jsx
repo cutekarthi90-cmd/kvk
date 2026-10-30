@@ -1233,12 +1233,12 @@ export default function SaleScreen({
 
           {/* Bill Calculation & Payment Status */}
           <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
-            {/* Discount Column (தள்ளுபடி / கழிவு ₹) */}
+            {/* Discount Column (தள்ளுபடி ₹) */}
             <div className="p-3 bg-amber-50/80 rounded-xl border-2 border-amber-300 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
                   <Percent className="w-4 h-4 text-amber-700" />
-                  <span>Discount on Sale (தள்ளுபடி / கழிவு ₹):</span>
+                  <span>Discount (தள்ளுபடி ₹):</span>
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>

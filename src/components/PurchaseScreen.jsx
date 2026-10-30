@@ -567,7 +567,7 @@ export default function PurchaseScreen({
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
                   <Percent className="w-3.5 h-3.5 text-amber-700" />
-                  Discount on Payment (தள்ளுபடி / கழிவு ₹):
+                  Discount on Payment (தள்ளுபடி ₹):
                 </label>
                 <div className="relative">
                   <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
