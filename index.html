@@ -20,29 +20,19 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Cleanly unregister all service workers and purge caches to prevent stale display
       if ('serviceWorker' in navigator) {
-        // Check for updates on every open
         navigator.serviceWorker.getRegistrations().then((registrations) => {
           for (const reg of registrations) {
-            reg.update();
+            reg.unregister();
           }
         });
-
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then((reg) => {
-            reg.addEventListener('updatefound', () => {
-              const newWorker = reg.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    window.location.reload();
-                  }
-                });
-              }
-            });
-          }).catch((err) => {
-            console.warn('SW register error', err);
-          });
+      }
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          for (const name of names) {
+            caches.delete(name);
+          }
         });
       }
     </script>

@@ -18,7 +18,8 @@ import {
   X,
   Package,
   RotateCcw,
-  ShieldCheck
+  ShieldCheck,
+  Percent
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';
@@ -236,6 +237,8 @@ export default function SaleScreen({
       .join('\n\n');
 
     const totalAmt = Number(sale.grandTotal).toFixed(2);
+    const subTotalAmt = Number(sale.subTotal || sale.grandTotal).toFixed(2);
+    const discAmt = Number(sale.discount || 0).toFixed(2);
     const paidAmt = Number(sale.paidAmount || 0).toFixed(2);
     const balDue = Math.max(0, Number(sale.grandTotal) - Number(sale.paidAmount || 0)).toFixed(2);
     const billTitle = isQ ? '*ESTIMATE / QUOTATION BILL*' : '*CASH / CREDIT BILL*';
@@ -255,6 +258,7 @@ export default function SaleScreen({
       `━━━━━━━━━━━━━━━━━━\n` +
       `${itemsList}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
+      (Number(discAmt) > 0 ? `Subtotal: Rs. ${subTotalAmt}\n*Discount (தள்ளுபடி): -Rs. ${discAmt}*\n` : '') +
       `*Grand Total: Rs. ${totalAmt}*\n` +
       (Number(paidAmt) > 0 ? `Paid: Rs. ${paidAmt}\n` : '') +
       (Number(balDue) > 0 ? `*Balance Due: Rs. ${balDue}*\n` : '') +
@@ -758,6 +762,11 @@ export default function SaleScreen({
                     <div className="font-black text-blue-600 text-base">
                       {formatCurrency(sale.grandTotal)}
                     </div>
+                    {Number(sale.discount) > 0 && (
+                      <div className="text-[10px] text-amber-700 font-bold">
+                        தள்ளுபடி: -{formatCurrency(Number(sale.discount))}
+                      </div>
+                    )}
                     <div className="text-[11px] text-slate-400 font-medium">{formatDate(sale.date)}</div>
                   </div>
                 </div>
@@ -1223,25 +1232,47 @@ export default function SaleScreen({
           </div>
 
           {/* Bill Calculation & Payment Status */}
-          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-3">
+          <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+            {/* Discount Column (தள்ளுபடி / கழிவு ₹) */}
+            <div className="p-3 bg-amber-50/80 rounded-xl border-2 border-amber-300 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                  <Percent className="w-4 h-4 text-amber-700" />
+                  <span>Discount on Sale (தள்ளுபடி / கழிவு ₹):</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0"
+                    value={discount || ''}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                    className="w-28 pl-6 pr-2 py-1 bg-white border-2 border-amber-400 focus:border-amber-600 rounded-lg text-sm font-black text-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <span className="text-[10px] text-amber-800 block">
+                {isQSale ? 'Q-Sale quotation concession on bill amount' : 'Customer concession / Cash discount deducted from bill total'}
+              </span>
+            </div>
+
             <div className="space-y-1.5 text-xs text-slate-600 border-b border-slate-100 pb-2">
-              <div className="flex justify-between">
-                <span>Subtotal:</span>
+              <div className="flex justify-between items-center">
+                <span>Subtotal (பொருட்களின் மதிப்பு):</span>
                 <span className="font-bold text-slate-800">{formatCurrency(subTotal)}</span>
               </div>
-              <div className="flex justify-between items-center">
-                <span>Discount (₹):</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={discount || ''}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
-                  placeholder="0"
-                  className="w-20 text-right p-1 bg-slate-50 border border-slate-200 rounded font-bold text-xs"
-                />
-              </div>
-              <div className="flex justify-between items-center text-base font-black text-blue-600 pt-1 border-t border-slate-100">
-                <span>Grand Total:</span>
+              {Number(discount) > 0 && (
+                <div className="flex justify-between items-center text-emerald-700 font-bold">
+                  <span>(-) Discount (தள்ளுபடி):</span>
+                  <span>- {formatCurrency(Number(discount))}</span>
+                </div>
+              )}
+              <div className={`flex justify-between items-center text-base font-black pt-1 border-t border-slate-100 ${
+                isQSale ? 'text-purple-800' : 'text-blue-600'
+              }`}>
+                <span>Grand Total (நிகர தொகை):</span>
                 <span>{formatCurrency(grandTotal)}</span>
               </div>
             </div>
