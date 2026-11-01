@@ -15,8 +15,10 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../services/pdfService';
 import { Storage } from '../services/storage';
+import StockReportScreen from './StockReportScreen';
 
 export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems }) {
+  const [activeSubTab, setActiveSubTab] = useState('stock'); // 'stock' | 'report'
   const [editingItem, setEditingItem] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
@@ -54,11 +56,15 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
 
       let sold = 0;
       sales.forEach((s) => {
-        (s.items || []).forEach((si) => {
-          if (si.id === item.id) {
-            sold += Number(si.qty) || 0;
-          }
-        });
+        // ONLY Q-Sales reduce physical stock! Original GST Sales do not reduce physical stock
+        const isQ = s.isQSale || s.billType === 'Q_SALE';
+        if (isQ) {
+          (s.items || []).forEach((si) => {
+            if (si.id === item.id) {
+              sold += Number(si.qty) || 0;
+            }
+          });
+        }
       });
 
       const current = initial + purchased - sold;
@@ -227,7 +233,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
           </div>
         </div>
 
-        {!isAdding && !editingItem && (
+        {!isAdding && !editingItem && activeSubTab === 'stock' && (
           <button
             onClick={handleStartAdd}
             className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs"
@@ -238,10 +244,58 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
         )}
       </div>
 
-      {/* Search Bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-        <input
+      {/* Sub Tabs: Live Physical Stock vs Original Bill Stock Report */}
+      <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-xs flex gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('stock')}
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            activeSubTab === 'stock'
+              ? 'bg-blue-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>📦 Live Stock (இருப்பு)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('report')}
+          className={`flex-1 py-2 text-xs font-black rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            activeSubTab === 'report'
+              ? 'bg-emerald-700 text-white shadow-xs'
+              : 'text-emerald-800 hover:bg-emerald-50'
+          }`}
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>📊 Stock Report (Original Bill)</span>
+        </button>
+      </div>
+
+      {/* TAB 2: ORIGINAL BILL STOCK REPORT */}
+      {activeSubTab === 'report' && (
+        <StockReportScreen
+          items={items}
+          sales={sales}
+          purchases={purchases}
+        />
+      )}
+
+      {/* TAB 1: LIVE PHYSICAL STOCK */}
+      {activeSubTab === 'stock' && (
+        <>
+          {/* Stock Guidance Notice */}
+          <div className="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200 text-xs text-blue-900 flex items-center justify-between">
+            <span className="font-bold">🌾 Stock Rule:</span>
+            <span className="text-[11px] text-blue-800">
+              Purchases (+Stock) • Q-Sales (-Stock) • Original Bills do NOT reduce
+            </span>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            <input
           type="text"
           placeholder="Search items..."
           value={search}
@@ -466,6 +520,8 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* MANUAL STOCK ADJUSTMENT MODAL */}
       {adjustingItem && (

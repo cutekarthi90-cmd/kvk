@@ -38,6 +38,7 @@ export default function PurchaseScreen({
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
   const [cart, setCart] = useState([]);
+  const [freightCharges, setFreightCharges] = useState(''); // Freight / வண்டி வாடகை ₹
   const [discount, setDiscount] = useState(''); // Discount on Payment (தள்ளுபடி)
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [notes, setNotes] = useState('');
@@ -101,16 +102,18 @@ export default function PurchaseScreen({
   }, [cart]);
 
   const numDiscount = Number(discount) || 0;
+  const numFreight = Number(freightCharges) || 0;
 
   const grandTotal = useMemo(() => {
-    return Math.max(0, subTotal - numDiscount);
-  }, [subTotal, numDiscount]);
+    return Math.max(0, subTotal + numFreight - numDiscount);
+  }, [subTotal, numFreight, numDiscount]);
 
   const resetForm = () => {
     setCart([]);
     setSupplierName('');
     setSupplierPhone('');
     setCustomBillNo('');
+    setFreightCharges('');
     setDiscount('');
     setNotes('');
     setIsQPurchase(false);
@@ -172,6 +175,7 @@ export default function PurchaseScreen({
         unit: 'Bag',
       })),
       subTotal,
+      freightCharges: numFreight,
       discount: numDiscount,
       grandTotal,
       paymentStatus,
@@ -560,8 +564,32 @@ export default function PurchaseScreen({
             )}
           </div>
 
-          {/* Discount on Payment & Grand Total Card */}
+          {/* Freight Charges, Discount on Payment & Grand Total Card */}
           <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
+            {/* Freight Charges Field (வண்டி வாடகை / லாரி வாடகை) */}
+            <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-200 space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-blue-700" />
+                  Freight Charges (வண்டி / லாரி வாடகை ₹):
+                </label>
+                <div className="relative">
+                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={freightCharges}
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setFreightCharges(e.target.value)}
+                    className="w-28 pl-6 pr-2 py-1 bg-white border-2 border-blue-300 focus:border-blue-600 rounded-lg text-sm font-black text-slate-900 focus:outline-none"
+                  />
+                </div>
+              </div>
+              <span className="text-[10px] text-blue-700 block">
+                Transport / Lorry freight added to total payable bill amount
+              </span>
+            </div>
+
             {/* Discount on Payment Field */}
             <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 space-y-1.5">
               <div className="flex items-center justify-between">
@@ -586,17 +614,26 @@ export default function PurchaseScreen({
               </span>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <span>Subtotal (மண்டியில் இறக்கிய மதிப்பு):</span>
-              <span className="font-bold text-slate-800">₹{subTotal.toFixed(2)}</span>
-            </div>
-
-            {numDiscount > 0 && (
-              <div className="flex items-center justify-between text-xs text-emerald-700">
-                <span>Discount on Payment (தள்ளுபடி):</span>
-                <span className="font-bold">-₹{numDiscount.toFixed(2)}</span>
+            <div className="space-y-1.5 text-xs text-slate-600 border-b border-slate-100 pb-2">
+              <div className="flex items-center justify-between">
+                <span>Subtotal (மண்டியில் இறக்கிய தானிய மதிப்பு):</span>
+                <span className="font-bold text-slate-800">₹{subTotal.toFixed(2)}</span>
               </div>
-            )}
+
+              {numFreight > 0 && (
+                <div className="flex items-center justify-between text-blue-700 font-bold">
+                  <span>(+) Freight Charges (வண்டி வாடகை):</span>
+                  <span>+₹{numFreight.toFixed(2)}</span>
+                </div>
+              )}
+
+              {numDiscount > 0 && (
+                <div className="flex items-center justify-between text-emerald-700 font-bold">
+                  <span>(-) Discount on Payment (தள்ளுபடி):</span>
+                  <span>-₹{numDiscount.toFixed(2)}</span>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-600">Payment Status:</span>
@@ -765,13 +802,22 @@ export default function PurchaseScreen({
                           {(p.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
                         </div>
 
-                        {/* Discount on Payment Badge */}
-                        {disc > 0 && (
-                          <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                            <Tag className="w-3 h-3 text-emerald-600" />
-                            <span>Discount on Pay: -₹{disc.toFixed(2)}</span>
-                          </div>
-                        )}
+                        {/* Freight and Discount Badges */}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                          {Number(p.freightCharges) > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                              <Truck className="w-3 h-3 text-blue-600" />
+                              <span>வாடகை: +₹{Number(p.freightCharges).toFixed(2)}</span>
+                            </span>
+                          )}
+
+                          {disc > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                              <Tag className="w-3 h-3 text-emerald-600" />
+                              <span>தள்ளுபடி: -₹{disc.toFixed(2)}</span>
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="text-right shrink-0">

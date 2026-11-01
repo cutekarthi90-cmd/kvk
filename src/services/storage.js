@@ -404,7 +404,12 @@ export const Storage = {
     };
   },
 
-  // Calculate live item stock: Initial Stock + Total Purchased + Total Returned - Total Sold
+  // Calculate live item stock:
+  // RULE (as requested by user):
+  // - Purchase & Q-Purchase both ADD to physical stock (+Stock)
+  // - Sales Returns ADD back to stock (+Stock)
+  // - Q-Sales strictly DEDUCTS from physical stock (-Stock)
+  // - Original GST Sales do NOT deduct physical stock (since user bills official separate from Mandi godown physical stock)
   getItemStock: (itemId) => {
     const items = Storage.getItems();
     const item = items.find((i) => i.id === itemId);
@@ -435,14 +440,55 @@ export const Storage = {
 
     let soldQty = 0;
     sales.forEach((s) => {
-      (s.items || []).forEach((si) => {
-        if (si.id === itemId) {
-          soldQty += Number(si.qty) || 0;
-        }
-      });
+      // ONLY Q-Sales reduce physical stock!
+      const isQ = s.isQSale || s.billType === 'Q_SALE';
+      if (isQ) {
+        (s.items || []).forEach((si) => {
+          if (si.id === itemId) {
+            soldQty += Number(si.qty) || 0;
+          }
+        });
+      }
     });
 
     return initial + purchasedQty + returnedQty - soldQty;
+  },
+
+  // Calculate official GST Stock for an item (Original Bill Stock)
+  getOriginalBillItemStock: (itemId) => {
+    const items = Storage.getItems();
+    const item = items.find((i) => i.id === itemId);
+    if (!item) return 0;
+
+    const initial = Number(item.gstOpeningStock !== undefined ? item.gstOpeningStock : item.initialStock) || 0;
+    const purchases = Storage.getPurchases();
+    const sales = Storage.getSales();
+
+    let gstPurchasedQty = 0;
+    purchases.forEach((p) => {
+      const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
+      if (!isQ) {
+        (p.items || []).forEach((pi) => {
+          if (pi.id === itemId) {
+            gstPurchasedQty += Number(pi.qty) || 0;
+          }
+        });
+      }
+    });
+
+    let gstSoldQty = 0;
+    sales.forEach((s) => {
+      const isQ = s.isQSale || s.billType === 'Q_SALE';
+      if (!isQ) {
+        (s.items || []).forEach((si) => {
+          if (si.id === itemId) {
+            gstSoldQty += Number(si.qty) || 0;
+          }
+        });
+      }
+    });
+
+    return initial + gstPurchasedQty - gstSoldQty;
   },
 
   // Calculate customer balance including Opening Balance & Sales Returns
