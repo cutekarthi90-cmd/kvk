@@ -476,7 +476,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726566693",
-    "name": "Vembomdampalayam sivalingam",
+    "name": "வேம்பாண்டாம்பாளையம் சிவலிங்கம்",
     "phone": "8012672345",
     "address": "",
     "notes": "",
@@ -486,7 +486,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726533732",
-    "name": "Nambiyur suppu son prakash",
+    "name": "நம்பியூர் சுப்பு மகன் பிரகாஷ்",
     "phone": "9443944632",
     "address": "",
     "notes": "",
@@ -496,7 +496,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726478377",
-    "name": "Kunnathur nadarajan",
+    "name": "குன்னத்தூர் நடராஜன்",
     "phone": "9894987821",
     "address": "",
     "notes": "",
@@ -506,7 +506,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726428865",
-    "name": "Nellaistores velampalayam baskar",
+    "name": "நெல்லை ஸ்டோர்ஸ் வேலம்பாளையம் பாஸ்கர்",
     "phone": "9865693562",
     "address": "",
     "notes": "",
@@ -516,7 +516,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726311526",
-    "name": "Kolathur karungalur subramani",
+    "name": "கொளத்தூர் கருங்களூர் சுப்பிரமணி",
     "phone": "9786775476",
     "address": "",
     "notes": "",
@@ -526,7 +526,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726278576",
-    "name": "Karumalaikoodal",
+    "name": "கருமலைக்கூடல்",
     "phone": "7200143734",
     "address": "",
     "notes": "",
@@ -536,7 +536,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726241269",
-    "name": "Sani santhai arisikadai boopathi",
+    "name": "சனிசந்தை அரிசிக்கடை பூபதி",
     "phone": "9095951091",
     "address": "",
     "notes": "",
@@ -546,7 +546,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726202895",
-    "name": "Modachur thambikadai",
+    "name": "மொடச்சூர் தம்பிக்கடை",
     "phone": "9942756317",
     "address": "",
     "notes": "",
@@ -556,7 +556,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726168453",
-    "name": "Veppadai saraswathi stores",
+    "name": "வெப்படை சரஸ்வதி ஸ்டோர்ஸ்",
     "phone": "9080286341",
     "address": "",
     "notes": "",
@@ -566,7 +566,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726136639",
-    "name": "Kaveri cross",
+    "name": "காவேரி கிராஸ்",
     "phone": "8883626565",
     "address": "",
     "notes": "",
@@ -576,7 +576,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726072794",
-    "name": "Kanjikovil balu",
+    "name": "காஞ்சிக்கோவில் பாலு",
     "phone": "9952671946",
     "address": "",
     "notes": "",
@@ -586,7 +586,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793726030940",
-    "name": "Vijayamangalam T.C.R",
+    "name": "விஜயமங்கலம் T.C.R",
     "phone": "9443680459",
     "address": "",
     "notes": "",
@@ -596,7 +596,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793725881799",
-    "name": "Pongalur santhi stores",
+    "name": "பொங்கலூர் சாந்தி ஸ்டோர்ஸ்",
     "phone": "9842697600",
     "address": "",
     "notes": "",
@@ -606,7 +606,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793725849728",
-    "name": "Puliyampatti sampath",
+    "name": "புளியம்பட்டி சம்பத்",
     "phone": "9865657764",
     "address": "",
     "notes": "",
@@ -616,7 +616,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793725780161",
-    "name": "Kunnathur krishnan",
+    "name": "குன்னத்தூர் கிருஷ்ணன்",
     "phone": "9842294524",
     "address": "",
     "notes": "",
@@ -626,7 +626,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793725752455",
-    "name": "Koduvaai kannan",
+    "name": "கொடுவாய் கண்ணன்",
     "phone": "9842562444",
     "address": "",
     "notes": "",
@@ -636,7 +636,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793725643956",
-    "name": "Perumanallur manikaarar",
+    "name": "பெருமாநல்லூர் மணிக்காரர்",
     "phone": "9789665518",
     "address": "",
     "notes": "",
@@ -886,7 +886,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808973743",
-    "name": "Uthukuli R.S Vakkipilkaarar",
+    "name": "ஊத்துக்குளி R.S வக்கீல்பிள்ளைக்காரர்",
     "phone": "8015542943",
     "address": "",
     "notes": "",
@@ -896,7 +896,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808925984",
-    "name": "Palani Venkatesh",
+    "name": "பழனி வெங்கடேஷ்",
     "phone": "9994064001",
     "address": "",
     "notes": "",
@@ -906,7 +906,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808873917",
-    "name": "Oothiyur sun",
+    "name": "ஊதியூர் சன்",
     "phone": "9659549100",
     "address": "",
     "notes": "",
@@ -916,7 +916,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808800931",
-    "name": "Mylambaadi pooranam",
+    "name": "மைலம்பாடி பூரணம்",
     "phone": "9865636303",
     "address": "",
     "notes": "",
@@ -926,7 +926,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808776171",
-    "name": "Ayyampalayam Chinnathambi",
+    "name": "அய்யம்பாளையம் சின்னத்தம்பி",
     "phone": "9865220207",
     "address": "",
     "notes": "",
@@ -936,7 +936,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808742936",
-    "name": "Vetrikumar Kolapalur",
+    "name": "வெற்றிகுமார் கொளப்பலூர்",
     "phone": "9443852888",
     "address": "",
     "notes": "",
@@ -946,7 +946,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808715289",
-    "name": "Kaasiyur Ramesh",
+    "name": "காசியூர் ரமேஷ்",
     "phone": "9443064143",
     "address": "",
     "notes": "",
@@ -956,7 +956,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808679947",
-    "name": "Sakkaraikaarar",
+    "name": "சக்கரைக்காரர்",
     "phone": "9965454990",
     "address": "",
     "notes": "",
@@ -966,7 +966,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808645147",
-    "name": "Mecheri Venkatesh",
+    "name": "மேச்சேரி வெங்கடேஷ்",
     "phone": "9442995025",
     "address": "",
     "notes": "",
@@ -976,7 +976,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808619398",
-    "name": "Veppadai Lakshmi Arisimandi",
+    "name": "வெப்படை லட்சுமி அரிசி மண்டி",
     "phone": "9942111322",
     "address": "",
     "notes": "",
@@ -986,7 +986,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808397579",
-    "name": "Pallagowndanpalayam Chenniyappan",
+    "name": "பல்லகவுண்டன்பாளையம் சென்னியப்பன்",
     "phone": "9944172427",
     "address": "",
     "notes": "",
@@ -996,7 +996,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808368914",
-    "name": "Senthamangalam JB",
+    "name": "செந்தாமங்கலம் JB",
     "phone": "9442645149",
     "address": "",
     "notes": "",
@@ -1006,7 +1006,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808323584",
-    "name": "Poothapaadi Urakadai",
+    "name": "பூதப்பாடி உரக்கடை",
     "phone": "9750143004",
     "address": "",
     "notes": "",
@@ -1016,7 +1016,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808271643",
-    "name": "Kangeyam Amman & co",
+    "name": "காங்கேயம் அம்மன் & கோ",
     "phone": "9894439185",
     "address": "",
     "notes": "",
@@ -1026,7 +1026,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808242446",
-    "name": "Bavani Lingesh",
+    "name": "பவானி லிங்கேஷ்",
     "phone": "9944371204",
     "address": "",
     "notes": "",
@@ -1036,7 +1036,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808180877",
-    "name": "Kangeyam K.S.A",
+    "name": "காங்கேயம் K.S.A",
     "phone": "9443220396",
     "address": "",
     "notes": "",
@@ -1046,7 +1046,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808146488",
-    "name": "Pallagowdanpalayam Ramesh",
+    "name": "பல்லகவுண்டன்பாளையம் ரமேஷ்",
     "phone": "9952821935",
     "address": "",
     "notes": "",
@@ -1056,7 +1056,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808106423",
-    "name": "Dharapuram Ganesh",
+    "name": "தாராபுரம் கணேஷ்",
     "phone": "9442351927",
     "address": "",
     "notes": "",
@@ -1066,7 +1066,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808078004",
-    "name": "Kangeyam T.M.S",
+    "name": "காங்கேயம் T.M.S",
     "phone": "9025984830",
     "address": "",
     "notes": "",
@@ -1076,7 +1076,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793808037133",
-    "name": "Ganesapuram Anand",
+    "name": "கணேசபுரம் ஆனந்த்",
     "phone": "7010949003",
     "address": "",
     "notes": "",
@@ -1086,7 +1086,7 @@ const DEFAULT_CUSTOMERS = [
   },
   {
     "id": "cust-1793807990573",
-    "name": "Sevur periyasolakaarar",
+    "name": "சேவூர் பெரியசோளக்காரர்",
     "phone": "9791530525",
     "address": "",
     "notes": "",
