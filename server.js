@@ -24,6 +24,47 @@ const DIST_DIR = path.join(__dirname, 'dist');
 // Unique build version timestamp for instant client auto-updates
 const BUILD_VERSION = Date.now().toString();
 
+const CUSTOMER_NAME_TAMIL_MAP = {
+  'Vembomdampalayam sivalingam': 'வேம்பாண்டாம்பாளையம் சிவலிங்கம்',
+  'Nambiyur suppu son prakash': 'நம்பியூர் சுப்பு மகன் பிரகாஷ்',
+  'Kunnathur nadarajan': 'குன்னத்தூர் நடராஜன்',
+  'Nellaistores velampalayam baskar': 'நெல்லை ஸ்டோர்ஸ் வேலம்பாளையம் பாஸ்கர்',
+  'Kolathur karungalur subramani': 'கொளத்தூர் கருங்களூர் சுப்பிரமணி',
+  'Karumalaikoodal': 'கருமலைக்கூடல்',
+  'Sani santhai arisikadai boopathi': 'சனிசந்தை அரிசிக்கடை பூபதி',
+  'Modachur thambikadai': 'மொடச்சூர் தம்பிக்கடை',
+  'Veppadai saraswathi stores': 'வெப்படை சரஸ்வதி ஸ்டோர்ஸ்',
+  'Kaveri cross': 'காவேரி கிராஸ்',
+  'Kanjikovil balu': 'காஞ்சிக்கோவில் பாலு',
+  'Vijayamangalam T.C.R': 'விஜயமங்கலம் T.C.R',
+  'Pongalur santhi stores': 'பொங்கலூர் சாந்தி ஸ்டோர்ஸ்',
+  'Puliyampatti sampath': 'புளியம்பட்டி சம்பத்',
+  'Kunnathur krishnan': 'குன்னத்தூர் கிருஷ்ணன்',
+  'Koduvaai kannan': 'கொடுவாய் கண்ணன்',
+  'Perumanallur manikaarar': 'பெருமாநல்லூர் மணிக்காரர்',
+  'Uthukuli R.S Vakkipilkaarar': 'ஊத்துக்குளி R.S வக்கீல்பிள்ளைக்காரர்',
+  'Palani Venkatesh': 'பழனி வெங்கடேஷ்',
+  'Oothiyur sun': 'ஊதியூர் சன்',
+  'Mylambaadi pooranam': 'மைலம்பாடி பூரணம்',
+  'Ayyampalayam Chinnathambi': 'அய்யம்பாளையம் சின்னத்தம்பி',
+  'Vetrikumar Kolapalur': 'வெற்றிகுமார் கொளப்பலூர்',
+  'Kaasiyur Ramesh': 'காசியூர் ரமேஷ்',
+  'Sakkaraikaarar': 'சக்கரைக்காரர்',
+  'Mecheri Venkatesh': 'மேச்சேரி வெங்கடேஷ்',
+  'Veppadai Lakshmi Arisimandi': 'வெப்படை லட்சுமி அரிசி மண்டி',
+  'Pallagowndanpalayam Chenniyappan': 'பல்லகவுண்டன்பாளையம் சென்னியப்பன்',
+  'Senthamangalam JB': 'செந்தாமங்கலம் JB',
+  'Poothapaadi Urakadai': 'பூதப்பாடி உரக்கடை',
+  'Kangeyam Amman & co': 'காங்கேயம் அம்மன் & கோ',
+  'Bavani Lingesh': 'பவானி லிங்கேஷ்',
+  'Kangeyam K.S.A': 'காங்கேயம் K.S.A',
+  'Pallagowdanpalayam Ramesh': 'பல்லகவுண்டன்பாளையம் ரமேஷ்',
+  'Dharapuram Ganesh': 'தாராபுரம் கணேஷ்',
+  'Kangeyam T.M.S': 'காங்கேயம் T.M.S',
+  'Ganesapuram Anand': 'கணேசபுரம் ஆனந்த்',
+  'Sevur periyasolakaarar': 'சேவூர் பெரியசோளக்காரர்'
+};
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -1431,7 +1472,12 @@ app.post('/api/action', (req, res) => {
       if (Array.isArray(clientData.sales) && clientData.sales.length >= (db.sales || []).length) db.sales = clientData.sales;
       if (Array.isArray(clientData.purchases) && clientData.purchases.length >= (db.purchases || []).length) db.purchases = clientData.purchases;
       if (Array.isArray(clientData.receipts) && clientData.receipts.length >= (db.receipts || []).length) db.receipts = clientData.receipts;
-      if (Array.isArray(clientData.customers)) db.customers = clientData.customers;
+      if (Array.isArray(clientData.customers)) {
+        db.customers = clientData.customers.map((c) => ({
+          ...c,
+          name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
+        }));
+      }
       if (Array.isArray(clientData.items)) db.items = clientData.items;
       if (Array.isArray(clientData.suppliers)) db.suppliers = clientData.suppliers;
       if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = clientData.supplierPayments;

@@ -18,6 +18,48 @@ export const STORAGE_KEYS = {
   LAST_MODIFIED: 'quickbill_last_modified',
 };
 
+// Permanent Tamil transliteration map for KVK Mandi customers
+export const CUSTOMER_NAME_TAMIL_MAP = {
+  'Vembomdampalayam sivalingam': 'வேம்பாண்டாம்பாளையம் சிவலிங்கம்',
+  'Nambiyur suppu son prakash': 'நம்பியூர் சுப்பு மகன் பிரகாஷ்',
+  'Kunnathur nadarajan': 'குன்னத்தூர் நடராஜன்',
+  'Nellaistores velampalayam baskar': 'நெல்லை ஸ்டோர்ஸ் வேலம்பாளையம் பாஸ்கர்',
+  'Kolathur karungalur subramani': 'கொளத்தூர் கருங்களூர் சுப்பிரமணி',
+  'Karumalaikoodal': 'கருமலைக்கூடல்',
+  'Sani santhai arisikadai boopathi': 'சனிசந்தை அரிசிக்கடை பூபதி',
+  'Modachur thambikadai': 'மொடச்சூர் தம்பிக்கடை',
+  'Veppadai saraswathi stores': 'வெப்படை சரஸ்வதி ஸ்டோர்ஸ்',
+  'Kaveri cross': 'காவேரி கிராஸ்',
+  'Kanjikovil balu': 'காஞ்சிக்கோவில் பாலு',
+  'Vijayamangalam T.C.R': 'விஜயமங்கலம் T.C.R',
+  'Pongalur santhi stores': 'பொங்கலூர் சாந்தி ஸ்டோர்ஸ்',
+  'Puliyampatti sampath': 'புளியம்பட்டி சம்பத்',
+  'Kunnathur krishnan': 'குன்னத்தூர் கிருஷ்ணன்',
+  'Koduvaai kannan': 'கொடுவாய் கண்ணன்',
+  'Perumanallur manikaarar': 'பெருமாநல்லூர் மணிக்காரர்',
+  'Uthukuli R.S Vakkipilkaarar': 'ஊத்துக்குளி R.S வக்கீல்பிள்ளைக்காரர்',
+  'Palani Venkatesh': 'பழனி வெங்கடேஷ்',
+  'Oothiyur sun': 'ஊதியூர் சன்',
+  'Mylambaadi pooranam': 'மைலம்பாடி பூரணம்',
+  'Ayyampalayam Chinnathambi': 'அய்யம்பாளையம் சின்னத்தம்பி',
+  'Vetrikumar Kolapalur': 'வெற்றிகுமார் கொளப்பலூர்',
+  'Kaasiyur Ramesh': 'காசியூர் ரமேஷ்',
+  'Sakkaraikaarar': 'சக்கரைக்காரர்',
+  'Mecheri Venkatesh': 'மேச்சேரி வெங்கடேஷ்',
+  'Veppadai Lakshmi Arisimandi': 'வெப்படை லட்சுமி அரிசி மண்டி',
+  'Pallagowndanpalayam Chenniyappan': 'பல்லகவுண்டன்பாளையம் சென்னியப்பன்',
+  'Senthamangalam JB': 'செந்தாமங்கலம் JB',
+  'Poothapaadi Urakadai': 'பூதப்பாடி உரக்கடை',
+  'Kangeyam Amman & co': 'காங்கேயம் அம்மன் & கோ',
+  'Bavani Lingesh': 'பவானி லிங்கேஷ்',
+  'Kangeyam K.S.A': 'காங்கேயம் K.S.A',
+  'Pallagowdanpalayam Ramesh': 'பல்லகவுண்டன்பாளையம் ரமேஷ்',
+  'Dharapuram Ganesh': 'தாராபுரம் கணேஷ்',
+  'Kangeyam T.M.S': 'காங்கேயம் T.M.S',
+  'Ganesapuram Anand': 'கணேசபுரம் ஆனந்த்',
+  'Sevur periyasolakaarar': 'சேவூர் பெரியசோளக்காரர்'
+};
+
 const DEFAULT_SHOP = {
   name: 'KVK THANIYA MANDI',
   proprietor: '',
@@ -1202,7 +1244,18 @@ export const Storage = {
       if (data) {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.filter((c) => !deleted.includes(c.id));
+          let hasChange = false;
+          const cleaned = parsed.map((c) => {
+            if (CUSTOMER_NAME_TAMIL_MAP[c.name]) {
+              hasChange = true;
+              return { ...c, name: CUSTOMER_NAME_TAMIL_MAP[c.name] };
+            }
+            return c;
+          });
+          if (hasChange) {
+            localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(cleaned));
+          }
+          return cleaned.filter((c) => !deleted.includes(c.id));
         }
       }
       Storage.saveCustomers(DEFAULT_CUSTOMERS);
@@ -1693,12 +1746,25 @@ export const Storage = {
 
     const mergeById = (localList, serverList) => {
       const map = new Map();
-      (serverList || []).forEach((item) => {
-        if (!deleted.includes(item.id)) map.set(item.id, item);
-      });
-      // Local phone edits take precedence so waking server doesn't wipe active local bills
+      // Put all local items first (sanitize any known English names to Tamil)
       (localList || []).forEach((item) => {
-        if (!deleted.includes(item.id)) map.set(item.id, item);
+        if (!deleted.includes(item.id)) {
+          const fixedName = CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name;
+          map.set(item.id, { ...item, name: fixedName });
+        }
+      });
+      // Server updates take precedence for matching items, preserving any local-only offline items
+      (serverList || []).forEach((item) => {
+        if (!deleted.includes(item.id)) {
+          const existing = map.get(item.id);
+          const fixedName = CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name;
+          const cleanServerItem = { ...item, name: fixedName };
+          if (existing) {
+            map.set(item.id, { ...existing, ...cleanServerItem });
+          } else {
+            map.set(item.id, cleanServerItem);
+          }
+        }
       });
       return Array.from(map.values());
     };
