@@ -30,61 +30,1218 @@ if (!fs.existsSync(DATA_DIR)) {
 
 // Initial default database structure for KVK THANIYA MANDI
 const DEFAULT_DB = {
-  shop: {
-    name: 'KVK THANIYA MANDI',
-    proprietor: '',
-    phone: '9486668732 / 9443995160',
-    address: 'No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI, Erode - 638 051',
-    gstin: '33BJGPV4768L1ZH',
-    pan: 'BJGPV4768L',
-    upiId: '',
-    terms: 'Thank you for your business! Goods once sold will not be taken back.',
+  "shop": {
+    "name": "KVK THANIYA MANDI",
+    "proprietor": "",
+    "phone": "9486668732 / 9443995160",
+    "address": "No.2/1, P.R.S. Road, Mukasipidariyur, CHENNIMALAI, Erode - 638 051",
+    "gstin": "33BJGPV4768L1ZH",
+    "pan": "BJGPV4768L",
+    "upiId": "",
+    "terms": "Thank you for your business! Goods once sold will not be taken back."
   },
-  items: [
-    { id: 'item-1', name: 'Ponni Boiled Rice (50kg)', price: 2700, unit: 'Bag' },
-    { id: 'item-2', name: 'Raw Rice (50kg)', price: 2500, unit: 'Bag' },
-    { id: 'item-3', name: 'Kambu - Pearl Millet (50kg)', price: 2100, unit: 'Bag' },
-    { id: 'item-4', name: 'Ragi - Finger Millet (50kg)', price: 2300, unit: 'Bag' },
-    { id: 'item-5', name: 'Cholam - Sorghum (50kg)', price: 2000, unit: 'Bag' },
-    { id: 'item-6', name: 'Dhaniya - Coriander (50kg)', price: 6500, unit: 'Bag' },
-    { id: 'item-7', name: 'Groundnut - Kadalai (50kg)', price: 6000, unit: 'Bag' },
-    { id: 'item-8', name: 'Ellu - Gingelly Seeds (50kg)', price: 9500, unit: 'Bag' },
-    { id: 'item-9', name: 'Toor Dal (50kg)', price: 8250, unit: 'Bag' },
-    { id: 'item-10', name: 'Urad Dal (50kg)', price: 7000, unit: 'Bag' },
-    { id: 'item-11', name: 'Moong Dal (50kg)', price: 6250, unit: 'Bag' },
-    { id: 'item-12', name: 'Kollu - Horse Gram (50kg)', price: 3250, unit: 'Bag' },
-    { id: 'item-13', name: 'Pachai Payaru (50kg)', price: 5500, unit: 'Bag' },
-    { id: 'item-14', name: 'Kondakadalai - Bengal Gram (50kg)', price: 4750, unit: 'Bag' },
-    { id: 'item-15', name: 'Sesame Oil (Tin/Bag)', price: 4350, unit: 'Bag' },
-  ],
-  customers: [
+  "items": [
     {
-      id: 'cust-1',
-      name: 'Veehech Coco Substrates',
-      phone: '9486668732',
-      address: 'SF 71, Chennimalai Road, Thulukampalayam, Perundurai TK, Erode',
-      notes: 'GSTIN: 33AE...',
-      createdAt: new Date().toISOString(),
+      "id": "item-1793679298266",
+      "name": "லைன் மஞ்சள் சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
     },
     {
-      id: 'cust-2',
-      name: 'Ramesh Agro Store',
-      phone: '9789123456',
-      address: 'Main Road, Chennimalai',
-      notes: 'Regular wholesale buyer',
-      createdAt: new Date().toISOString(),
+      "id": "item-1793679523692",
+      "name": "நாடு மஞ்சள் சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
     },
+    {
+      "id": "item-1793679610174",
+      "name": "அரியலூர் மஞ்சள் சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679670961",
+      "name": "சின்ன வெள்ளை சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679700075",
+      "name": "சிகப்பு சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679729784",
+      "name": "மாஞ்சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679757695",
+      "name": "தரக்கனாமி சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679794191",
+      "name": "மானாவாரி சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679817570",
+      "name": "பீஜாப்பூர் சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679842658",
+      "name": "மக்காச்சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679862054",
+      "name": "காரிச்சோளம்",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679879079",
+      "name": "கொல்லு",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679891344",
+      "name": "கம்பு",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679924242",
+      "name": "தட்டைப்பயறு",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793679991224",
+      "name": "நரிப்பயறு",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-1793680061589",
+      "name": "பச்சைப்பயறு",
+      "price": 0,
+      "purchasePrice": 0,
+      "initialStock": 0,
+      "unit": "Bag"
+    },
+    {
+      "id": "item-manjal",
+      "name": "MANJAL CHOLAM / மஞ்சள் சோளம்",
+      "price": 5000,
+      "unit": "Bag",
+      "initialStock": 50
+    },
+    {
+      "id": "item-makkacholam",
+      "name": "மக்காச்சோளம் (Corn)",
+      "price": 2200,
+      "unit": "Bag",
+      "initialStock": 40
+    },
+    {
+      "id": "item-1",
+      "name": "Ponni Boiled Rice (50kg)",
+      "price": 2700,
+      "unit": "Bag",
+      "initialStock": 50
+    },
+    {
+      "id": "item-2",
+      "name": "Raw Rice (50kg)",
+      "price": 2500,
+      "unit": "Bag",
+      "initialStock": 40
+    },
+    {
+      "id": "item-3",
+      "name": "Kambu - Pearl Millet (50kg)",
+      "price": 2100,
+      "unit": "Bag",
+      "initialStock": 200
+    },
+    {
+      "id": "item-4",
+      "name": "Ragi (Finger Millet) (50kg)",
+      "price": 2300,
+      "unit": "Bag",
+      "initialStock": 150
+    },
+    {
+      "id": "item-6",
+      "name": "Coriander Seeds (Dhaniya) (50kg)",
+      "price": 6500,
+      "unit": "Bag",
+      "initialStock": 100
+    },
+    {
+      "id": "item-7",
+      "name": "Groundnut (Kadalai) (50kg)",
+      "price": 6000,
+      "unit": "Bag",
+      "initialStock": 120
+    },
+    {
+      "id": "item-8",
+      "name": "Gingelly Seeds (Ellu) (50kg)",
+      "price": 9500,
+      "unit": "Bag",
+      "initialStock": 80
+    },
+    {
+      "id": "item-9",
+      "name": "Toor Dal (50kg)",
+      "price": 8250,
+      "unit": "Bag",
+      "initialStock": 150
+    },
+    {
+      "id": "item-10",
+      "name": "Urad Dal (50kg)",
+      "price": 7000,
+      "unit": "Bag",
+      "initialStock": 120
+    },
+    {
+      "id": "item-11",
+      "name": "Moong Dal (50kg)",
+      "price": 6250,
+      "unit": "Bag",
+      "initialStock": 100
+    },
+    {
+      "id": "item-12",
+      "name": "Horse Gram (Kollu) (50kg)",
+      "price": 3250,
+      "unit": "Bag",
+      "initialStock": 90
+    },
+    {
+      "id": "item-13",
+      "name": "Green Gram (Pachai Payaru) (50kg)",
+      "price": 5500,
+      "unit": "Bag",
+      "initialStock": 110
+    },
+    {
+      "id": "item-14",
+      "name": "Bengal Gram (Kondakadalai) (50kg)",
+      "price": 4750,
+      "unit": "Bag",
+      "initialStock": 100
+    },
+    {
+      "id": "item-15",
+      "name": "Sesame Oil (Tin/Bag)",
+      "price": 4350,
+      "unit": "Bag",
+      "initialStock": 60
+    }
   ],
-  sales: [],
-  receipts: [],
-  purchases: [],
-  suppliers: [],
-  supplierPayments: [],
-  salesReturns: [],
-  expenses: [],
-  interestLoans: [],
-  interestPayments: [],
-  lastUpdated: new Date().toISOString(),
+  "customers": [
+    {
+      "id": "cust-1793722744596",
+      "name": "ஒரிச்சேரிபுத்தூர்",
+      "phone": "9442726720",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:19:04.596Z"
+    },
+    {
+      "id": "cust-1793723781200",
+      "name": "புளியம்பட்டி முருகேஷ்",
+      "phone": "9600722401",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:36:21.200Z"
+    },
+    {
+      "id": "cust-1793723745402",
+      "name": "மைலம்பாடி ராஜா",
+      "phone": "9790501510",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:35:45.402Z"
+    },
+    {
+      "id": "cust-1793723715910",
+      "name": "ஒலகடம் பிரபாகரன்",
+      "phone": "9865127336",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:35:15.910Z"
+    },
+    {
+      "id": "cust-1793723663418",
+      "name": "மைலம்பாடி மணி",
+      "phone": "9952259917",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:34:23.418Z"
+    },
+    {
+      "id": "cust-1793723626070",
+      "name": "குன்னத்தூர் திவாகர்",
+      "phone": "7397055471",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:33:46.070Z"
+    },
+    {
+      "id": "cust-1793723579741",
+      "name": "குன்னத்தூர் கோபால்",
+      "phone": "8056416938",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:32:59.741Z"
+    },
+    {
+      "id": "cust-1793723533531",
+      "name": "கரடிவாவி ஜெகநாதன்",
+      "phone": "9976198345",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:32:13.531Z"
+    },
+    {
+      "id": "cust-1793723496104",
+      "name": "பருவாச்சி பூபதி",
+      "phone": "9842856900",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:31:36.104Z"
+    },
+    {
+      "id": "cust-1793723457908",
+      "name": "குருசாமி",
+      "phone": "9842946954",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:30:57.908Z"
+    },
+    {
+      "id": "cust-1793723426619",
+      "name": "திருமுருகன் சென்னிமலை",
+      "phone": "9865981666",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:30:26.619Z"
+    },
+    {
+      "id": "cust-1793723395694",
+      "name": "பூனாட்சி ராசு",
+      "phone": "8760406911",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:29:55.694Z"
+    },
+    {
+      "id": "cust-1793723356434",
+      "name": "சக்தி ஊஞ்சம்பாளையம்",
+      "phone": "9842936688",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:29:16.434Z"
+    },
+    {
+      "id": "cust-1793723299011",
+      "name": "வேலு",
+      "phone": "9750287546",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:28:19.011Z"
+    },
+    {
+      "id": "cust-1793723275007",
+      "name": "M.K.M",
+      "phone": "9965752785",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:27:55.007Z"
+    },
+    {
+      "id": "cust-1793723249789",
+      "name": "கோதை பூனாட்சி",
+      "phone": "9965788172",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:27:29.789Z"
+    },
+    {
+      "id": "cust-1793723209173",
+      "name": "குன்னத்தூர் சரவணன்",
+      "phone": "8760293003",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:26:49.173Z"
+    },
+    {
+      "id": "cust-1793723185408",
+      "name": "S.P.S",
+      "phone": "9865719575",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:26:25.408Z"
+    },
+    {
+      "id": "cust-1793723136597",
+      "name": "சன் நசியனூர்",
+      "phone": "9952857072",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:25:36.597Z"
+    },
+    {
+      "id": "cust-1793723039726",
+      "name": "விநாயகா (டோல்கேட்)",
+      "phone": "9994969205",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:23:59.726Z"
+    },
+    {
+      "id": "cust-1793726566693",
+      "name": "Vembomdampalayam sivalingam",
+      "phone": "8012672345",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:22:46.693Z"
+    },
+    {
+      "id": "cust-1793726533732",
+      "name": "Nambiyur suppu son prakash",
+      "phone": "9443944632",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:22:13.732Z"
+    },
+    {
+      "id": "cust-1793726478377",
+      "name": "Kunnathur nadarajan",
+      "phone": "9894987821",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:21:18.377Z"
+    },
+    {
+      "id": "cust-1793726428865",
+      "name": "Nellaistores velampalayam baskar",
+      "phone": "9865693562",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:20:28.865Z"
+    },
+    {
+      "id": "cust-1793726311526",
+      "name": "Kolathur karungalur subramani",
+      "phone": "9786775476",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:18:31.526Z"
+    },
+    {
+      "id": "cust-1793726278576",
+      "name": "Karumalaikoodal",
+      "phone": "7200143734",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:17:58.576Z"
+    },
+    {
+      "id": "cust-1793726241269",
+      "name": "Sani santhai arisikadai boopathi",
+      "phone": "9095951091",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:17:21.269Z"
+    },
+    {
+      "id": "cust-1793726202895",
+      "name": "Modachur thambikadai",
+      "phone": "9942756317",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:16:42.895Z"
+    },
+    {
+      "id": "cust-1793726168453",
+      "name": "Veppadai saraswathi stores",
+      "phone": "9080286341",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:16:08.453Z"
+    },
+    {
+      "id": "cust-1793726136639",
+      "name": "Kaveri cross",
+      "phone": "8883626565",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:15:36.639Z"
+    },
+    {
+      "id": "cust-1793726072794",
+      "name": "Kanjikovil balu",
+      "phone": "9952671946",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:14:32.794Z"
+    },
+    {
+      "id": "cust-1793726030940",
+      "name": "Vijayamangalam T.C.R",
+      "phone": "9443680459",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:13:50.940Z"
+    },
+    {
+      "id": "cust-1793725881799",
+      "name": "Pongalur santhi stores",
+      "phone": "9842697600",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:11:21.799Z"
+    },
+    {
+      "id": "cust-1793725849728",
+      "name": "Puliyampatti sampath",
+      "phone": "9865657764",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:10:49.728Z"
+    },
+    {
+      "id": "cust-1793725780161",
+      "name": "Kunnathur krishnan",
+      "phone": "9842294524",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:09:40.161Z"
+    },
+    {
+      "id": "cust-1793725752455",
+      "name": "Koduvaai kannan",
+      "phone": "9842562444",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:09:12.455Z"
+    },
+    {
+      "id": "cust-1793725643956",
+      "name": "Perumanallur manikaarar",
+      "phone": "9789665518",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:07:23.956Z"
+    },
+    {
+      "id": "cust-1793725508665",
+      "name": "வாசு",
+      "phone": "9865527777",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:05:08.665Z"
+    },
+    {
+      "id": "cust-1793725455480",
+      "name": "A தொப்பபாளையம் கோபி",
+      "phone": "9750127912",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:04:15.480Z"
+    },
+    {
+      "id": "cust-1793725316406",
+      "name": "கொளத்தூர் கருங்களூர் கோவிந்தசாமி",
+      "phone": "9003748480",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:01:56.406Z"
+    },
+    {
+      "id": "cust-1793725271119",
+      "name": "கொளத்தூர் சண்முகம்",
+      "phone": "9994426822",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:01:11.119Z"
+    },
+    {
+      "id": "cust-1793725206359",
+      "name": "பருவாச்சி ஆதர்ஷ் கார்த்தி",
+      "phone": "9976915260",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T17:00:06.359Z"
+    },
+    {
+      "id": "cust-1793725018165",
+      "name": "பருவாச்சி பெருமாள்",
+      "phone": "7094853859",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:56:58.165Z"
+    },
+    {
+      "id": "cust-1793724962321",
+      "name": "பெரும்தொழுவு சோளக்கடை",
+      "phone": "9095474637",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:56:02.321Z"
+    },
+    {
+      "id": "cust-1793724859383",
+      "name": "T.N பாளையம் ஆறுகுட்டி",
+      "phone": "9865949879",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:54:19.383Z"
+    },
+    {
+      "id": "cust-1793724814376",
+      "name": "சின்னக்கா மேட்டூர்",
+      "phone": "9791036095",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:53:34.376Z"
+    },
+    {
+      "id": "cust-1793724762987",
+      "name": "கொளத்தூர் பூரணம்",
+      "phone": "9500241295",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:52:42.987Z"
+    },
+    {
+      "id": "cust-1793724726258",
+      "name": "கொளத்தூர் ராமசாமி (நாகேஷ்)",
+      "phone": "9360458057",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:52:06.258Z"
+    },
+    {
+      "id": "cust-1793724691034",
+      "name": "நாமக்கல் சுந்தரம்",
+      "phone": "9842229403",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:51:31.034Z"
+    },
+    {
+      "id": "cust-1793724657869",
+      "name": "P.P செல்வம்",
+      "phone": "9790660683",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:50:57.869Z"
+    },
+    {
+      "id": "cust-1793724610557",
+      "name": "கொளத்தூர் சரவணன்",
+      "phone": "9486936705",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:50:10.557Z"
+    },
+    {
+      "id": "cust-1793724569114",
+      "name": "கொளத்தூர் பாப்பாதி",
+      "phone": "9789416232",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:49:29.114Z"
+    },
+    {
+      "id": "cust-1793724523601",
+      "name": "கொளத்தூர் சத்யநகர் அலமேலு",
+      "phone": "9597738385",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:48:43.601Z"
+    },
+    {
+      "id": "cust-1793724400368",
+      "name": "கொளத்தூர் கண்ணன்",
+      "phone": "9790525181",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:46:40.368Z"
+    },
+    {
+      "id": "cust-1793724366999",
+      "name": "நெருப்பூர் ராமகொண்டல்லி சீனிவாசன்",
+      "phone": "9159262051",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:46:06.999Z"
+    },
+    {
+      "id": "cust-1793724295158",
+      "name": "பூனாட்சி காந்தி",
+      "phone": "9629499040",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:44:55.158Z"
+    },
+    {
+      "id": "cust-1793724233914",
+      "name": "K.R ரேவதி",
+      "phone": "9385860201",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:43:53.914Z"
+    },
+    {
+      "id": "cust-1793724183527",
+      "name": "அந்தியூர் ஜோதி",
+      "phone": "9524835721",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:43:03.527Z"
+    },
+    {
+      "id": "cust-1793724139840",
+      "name": "கின்னிபாளையம் துறை",
+      "phone": "9865915924",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:42:19.840Z"
+    },
+    {
+      "id": "cust-1793724075549",
+      "name": "சென்னம்பட்டி ராதா",
+      "phone": "7502041506",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:41:15.549Z"
+    },
+    {
+      "id": "cust-1793724049267",
+      "name": "கொளத்தூர் சௌந்தர்ராஜன்",
+      "phone": "9524784595",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-03T16:40:49.267Z"
+    },
+    {
+      "id": "cust-1793808973743",
+      "name": "Uthukuli R.S Vakkipilkaarar",
+      "phone": "8015542943",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:16:13.743Z"
+    },
+    {
+      "id": "cust-1793808925984",
+      "name": "Palani Venkatesh",
+      "phone": "9994064001",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:15:25.984Z"
+    },
+    {
+      "id": "cust-1793808873917",
+      "name": "Oothiyur sun",
+      "phone": "9659549100",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:14:33.917Z"
+    },
+    {
+      "id": "cust-1793808800931",
+      "name": "Mylambaadi pooranam",
+      "phone": "9865636303",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:13:20.931Z"
+    },
+    {
+      "id": "cust-1793808776171",
+      "name": "Ayyampalayam Chinnathambi",
+      "phone": "9865220207",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:12:56.171Z"
+    },
+    {
+      "id": "cust-1793808742936",
+      "name": "Vetrikumar Kolapalur",
+      "phone": "9443852888",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:12:22.936Z"
+    },
+    {
+      "id": "cust-1793808715289",
+      "name": "Kaasiyur Ramesh",
+      "phone": "9443064143",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:11:55.289Z"
+    },
+    {
+      "id": "cust-1793808679947",
+      "name": "Sakkaraikaarar",
+      "phone": "9965454990",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:11:19.947Z"
+    },
+    {
+      "id": "cust-1793808645147",
+      "name": "Mecheri Venkatesh",
+      "phone": "9442995025",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:10:45.147Z"
+    },
+    {
+      "id": "cust-1793808619398",
+      "name": "Veppadai Lakshmi Arisimandi",
+      "phone": "9942111322",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:10:19.398Z"
+    },
+    {
+      "id": "cust-1793808397579",
+      "name": "Pallagowndanpalayam Chenniyappan",
+      "phone": "9944172427",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:06:37.579Z"
+    },
+    {
+      "id": "cust-1793808368914",
+      "name": "Senthamangalam JB",
+      "phone": "9442645149",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:06:08.914Z"
+    },
+    {
+      "id": "cust-1793808323584",
+      "name": "Poothapaadi Urakadai",
+      "phone": "9750143004",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:05:23.584Z"
+    },
+    {
+      "id": "cust-1793808271643",
+      "name": "Kangeyam Amman & co",
+      "phone": "9894439185",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:04:31.643Z"
+    },
+    {
+      "id": "cust-1793808242446",
+      "name": "Bavani Lingesh",
+      "phone": "9944371204",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:04:02.446Z"
+    },
+    {
+      "id": "cust-1793808180877",
+      "name": "Kangeyam K.S.A",
+      "phone": "9443220396",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:03:00.877Z"
+    },
+    {
+      "id": "cust-1793808146488",
+      "name": "Pallagowdanpalayam Ramesh",
+      "phone": "9952821935",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:02:26.488Z"
+    },
+    {
+      "id": "cust-1793808106423",
+      "name": "Dharapuram Ganesh",
+      "phone": "9442351927",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:01:46.423Z"
+    },
+    {
+      "id": "cust-1793808078004",
+      "name": "Kangeyam T.M.S",
+      "phone": "9025984830",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:01:18.004Z"
+    },
+    {
+      "id": "cust-1793808037133",
+      "name": "Ganesapuram Anand",
+      "phone": "7010949003",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T16:00:37.133Z"
+    },
+    {
+      "id": "cust-1793807990573",
+      "name": "Sevur periyasolakaarar",
+      "phone": "9791530525",
+      "address": "",
+      "notes": "",
+      "openingBalance": 0,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-04T15:59:50.573Z"
+    }
+  ],
+  "sales": [
+    {
+      "id": "sale-1793176600000",
+      "invoiceNo": "2",
+      "date": "2026-10-28",
+      "createdAt": "2026-10-28T14:00:00.000Z",
+      "customerId": "cust-karthik",
+      "customerName": "Karthik",
+      "customerPhone": "9715422499",
+      "items": [
+        {
+          "id": "item-manjal",
+          "name": "MANJAL CHOLAM",
+          "qty": 12,
+          "price": 5000,
+          "unit": "Bag"
+        }
+      ],
+      "subTotal": 60000,
+      "discount": 0,
+      "grandTotal": 60000,
+      "paymentStatus": "CREDIT",
+      "paidAmount": 0,
+      "paymentMode": ""
+    },
+    {
+      "id": "sale-1793262534128",
+      "invoiceNo": "1",
+      "date": "2026-10-29",
+      "createdAt": "2026-10-29T08:28:54.128Z",
+      "customerId": "cust-karthik",
+      "customerName": "Karthik",
+      "customerPhone": "9715422499",
+      "items": [
+        {
+          "id": "item-manjal",
+          "name": "MANJAL CHOLAM / மஞ்சள் சோளம்",
+          "price": 5000,
+          "unit": "Bag",
+          "initialStock": 50,
+          "qty": 1
+        }
+      ],
+      "subTotal": 5000,
+      "discount": 0,
+      "grandTotal": 5000,
+      "paymentStatus": "CREDIT",
+      "paidAmount": 0,
+      "paymentMode": ""
+    }
+  ],
+  "receipts": [],
+  "purchases": [
+    {
+      "id": "pur-1793882542135",
+      "billNo": "1",
+      "date": "2026-11-05",
+      "supplierName": "Kavi",
+      "supplierPhone": "9994308732",
+      "isQPurchase": false,
+      "billType": "GST_BILL",
+      "items": [
+        {
+          "id": "item-1793679700075",
+          "name": "சிகப்பு சோளம்",
+          "price": 1000,
+          "purchasePrice": 0,
+          "initialStock": 0,
+          "unit": "Bag",
+          "qty": 1
+        }
+      ],
+      "subTotal": 1000,
+      "freightCharges": 0,
+      "discount": 0,
+      "grandTotal": 1000,
+      "paymentStatus": "PAID",
+      "notes": "",
+      "createdAt": "2026-11-05T12:42:22.135Z"
+    }
+  ],
+  "lastUpdated": "2026-11-05T12:42:22.716Z",
+  "suppliers": [
+    {
+      "id": "sup-1793803586539",
+      "name": "Karthik",
+      "phone": "9715422499"
+    },
+    {
+      "id": "sup-1",
+      "name": "Raju Agro Pollachi",
+      "phone": "9842112345"
+    },
+    {
+      "id": "sup-2",
+      "name": "Murugan Grains Kangayam",
+      "phone": "9443354321"
+    }
+  ],
+  "supplierPayments": [],
+  "salesReturns": [
+    {
+      "id": "ret-1793293802908",
+      "returnNo": 1,
+      "date": "2026-10-29",
+      "customerId": "cust-karthik",
+      "customerName": "Karthik",
+      "customerPhone": "9715422499",
+      "items": [
+        {
+          "id": "item-manjal",
+          "name": "MANJAL CHOLAM / மஞ்சள் சோளம்",
+          "price": 5000,
+          "unit": "Bag",
+          "initialStock": 50,
+          "qty": 1
+        }
+      ],
+      "totalAmount": 5000,
+      "reason": "Other / இதர காரணம்",
+      "notes": "",
+      "createdAt": "2026-10-29T17:10:02.908Z"
+    }
+  ],
+  "expenses": [
+    {
+      "id": "exp-1793775787661",
+      "date": "2026-11-04",
+      "category": "rent",
+      "amount": 15000,
+      "paidTo": "கம்பிளியம்பட்டி குடோன்",
+      "paymentMode": "Cash",
+      "notes": "3 மாத வாடகை",
+      "createdAt": "2026-11-04T07:03:07.661Z"
+    }
+  ],
+  "interestLoans": [],
+  "interestPayments": []
 };
 
 const readDB = () => {
