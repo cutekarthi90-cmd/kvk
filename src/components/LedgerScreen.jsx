@@ -18,7 +18,11 @@ import {
   Truck,
   MessageSquare,
   Fuel,
-  Coins
+  Coins,
+  Building2,
+  Wallet,
+  UserPlus,
+  X
 } from 'lucide-react';
 import { generateLedgerStatementPDF, formatCurrency, formatDate } from '../services/pdfService';
 import { sharePdfToWhatsApp, sendDirectSMS } from '../services/shareService';
@@ -38,12 +42,23 @@ export default function LedgerScreen({
   onQuickSale,
   onQuickReceipt,
 }) {
-  const [activeLedgerTab, setActiveLedgerTab] = useState('customers'); // 'customers' | 'suppliers'
+  const [activeLedgerTab, setActiveLedgerTab] = useState('customers'); // 'customers' | 'suppliers' | 'expenses' | 'interest'
+  const [customerSubTab, setCustomerSubTab] = useState('regular'); // 'regular' | 'qsale' | 'all'
+  const [statementFilter, setStatementFilter] = useState('ALL'); // 'ALL' | 'REGULAR' | 'Q_SALE'
   const [search, setSearch] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [selectedSupplierName, setSelectedSupplierName] = useState(null);
   const [sharing, setSharing] = useState(false);
   const [toast, setToast] = useState('');
+
+  // Suppliers Master & Edit State
+  const [savedSuppliers, setSavedSuppliers] = useState(() => Storage.getSuppliers());
+  const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState(null);
+  const [supplierFormName, setSupplierFormName] = useState('');
+  const [supplierFormPhone, setSupplierFormPhone] = useState('');
+  const [supplierFormGstin, setSupplierFormGstin] = useState('');
+  const [supplierFormOpBal, setSupplierFormOpBal] = useState('');
 
   const showToast = (msg) => {
     setToast(msg);
@@ -53,25 +68,57 @@ export default function LedgerScreen({
   // ==================== 1. CUSTOMER LEDGER CALCULATIONS ====================
   const customerListWithBalances = useMemo(() => {
     return customers.map((c) => {
-      const balance = Storage.getCustomerBalance(c.id);
+      const regBal = Storage.getCustomerBalance(c.id, 'REGULAR');
+      const qBal = Storage.getCustomerBalance(c.id, 'Q_SALE');
+      const allBal = Storage.getCustomerBalance(c.id, 'ALL');
+
+      const custSales = sales.filter((s) => s.customerId === c.id);
+      const hasRegularSales = custSales.some((s) => !s.isQSale && s.billType !== 'Q_SALE') || (Number(c.openingBalance) > 0);
+      const hasQSales = custSales.some((s) => s.isQSale || s.billType === 'Q_SALE');
+
       return {
         ...c,
-        balance,
+        balance: allBal,
+        regBalance: regBal,
+        qBalance: qBal,
+        hasRegularSales,
+        hasQSales,
       };
     });
   }, [customers, sales, receipts]);
 
-  const filteredCustomers = useMemo(() => {
-    if (!search.trim()) return customerListWithBalances;
-    const q = search.toLowerCase();
-    return customerListWithBalances.filter(
-      (c) => c.name.toLowerCase().includes(q) || (c.phone && c.phone.includes(q))
-    );
-  }, [customerListWithBalances, search]);
+  const displayedCustomers = useMemo(() => {
+    let list = customerListWithBalances;
+    if (customerSubTab === 'regular') {
+      if (!search.trim()) {
+        const withReg = list.filter((c) => c.hasRegularSales);
+        list = withReg.length > 0 ? withReg : list;
+      }
+    } else if (customerSubTab === 'qsale') {
+      if (!search.trim()) {
+        list = list.filter((c) => c.hasQSales);
+      }
+    }
 
-  const totalOutstandingAll = useMemo(() => {
+    if (!search.trim()) return list;
+    const q = search.toLowerCase();
+    return list.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.phone && c.phone.includes(q)) ||
+        (c.gstin && c.gstin.toLowerCase().includes(q))
+    );
+  }, [customerListWithBalances, customerSubTab, search]);
+
+  const currentTabOutstanding = useMemo(() => {
+    if (customerSubTab === 'regular') {
+      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.regBalance.netDue), 0);
+    }
+    if (customerSubTab === 'qsale') {
+      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.qBalance.netDue), 0);
+    }
     return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.balance.netDue), 0);
-  }, [customerListWithBalances]);
+  }, [customerListWithBalances, customerSubTab]);
 
   const selectedCustomer = useMemo(() => {
     if (!selectedCustomerId) return null;
@@ -81,24 +128,49 @@ export default function LedgerScreen({
   // Customer Ledger transactions in DESCENDING order (newest first)
   const customerLedger = useMemo(() => {
     if (!selectedCustomer) return [];
-    const raw = Storage.getCustomerLedger(selectedCustomer.id);
+    const raw = Storage.getCustomerLedger(selectedCustomer.id, statementFilter);
     return [...raw].reverse();
-  }, [selectedCustomer, sales, receipts]);
+  }, [selectedCustomer, sales, receipts, statementFilter]);
 
   const currentCustomerBalance = useMemo(() => {
-    if (!selectedCustomer) return { totalSales: 0, totalPaid: 0, netDue: 0 };
-    return Storage.getCustomerBalance(selectedCustomer.id);
-  }, [selectedCustomer, sales, receipts]);
+    if (!selectedCustomer) return { totalSales: 0, totalPaid: 0, netDue: 0, openingBalance: 0 };
+    return Storage.getCustomerBalance(selectedCustomer.id, statementFilter);
+  }, [selectedCustomer, sales, receipts, statementFilter]);
 
   // ==================== 2. SUPPLIER LEDGER CALCULATIONS ====================
   const supplierList = useMemo(() => {
     const map = {};
+    // 1. First add all savedSuppliers from master
+    (savedSuppliers || []).forEach((s) => {
+      const name = (s.name || '').trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      map[key] = {
+        id: s.id || `sup-${key}`,
+        name,
+        phone: s.phone || '',
+        gstin: s.gstin || '',
+        openingBalance: Number(s.openingBalance) || 0,
+        totalPurchases: 0,
+        totalPaid: 0,
+        totalDiscount: 0,
+        billsCount: 0,
+        bills: [],
+      };
+    });
+
+    // 2. Add / merge from purchases
     purchases.forEach((p) => {
       const name = (p.supplierName || 'Unknown Supplier').trim();
-      if (!map[name]) {
-        map[name] = {
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!map[key]) {
+        map[key] = {
+          id: `sup-${Date.now()}-${Math.random()}`,
           name,
           phone: p.supplierPhone || '',
+          gstin: p.supplierGstin || '',
+          openingBalance: 0,
           totalPurchases: 0,
           totalPaid: 0,
           totalDiscount: 0,
@@ -106,31 +178,37 @@ export default function LedgerScreen({
           bills: [],
         };
       }
+      if (!map[key].phone && p.supplierPhone) map[key].phone = p.supplierPhone;
+      if (!map[key].gstin && p.supplierGstin) map[key].gstin = p.supplierGstin;
+
       const sub = Number(p.subTotal) || Number(p.grandTotal) || 0;
       const disc = Number(p.discount) || 0;
       const grand = Number(p.grandTotal) || (sub - disc);
 
-      map[name].totalPurchases += sub;
-      map[name].totalDiscount += disc;
+      map[key].totalPurchases += sub;
+      map[key].totalDiscount += disc;
 
       if (p.paymentStatus === 'PAID') {
-        map[name].totalPaid += grand;
+        map[key].totalPaid += grand;
       }
-      map[name].billsCount += 1;
-      map[name].bills.push(p);
+      map[key].billsCount += 1;
+      map[key].bills.push(p);
     });
 
     return Object.values(map).map((s) => ({
       ...s,
-      netDue: Math.max(0, s.totalPurchases - s.totalPaid - s.totalDiscount),
+      netDue: Math.max(0, s.openingBalance + s.totalPurchases - s.totalPaid - s.totalDiscount),
     }));
-  }, [purchases]);
+  }, [purchases, savedSuppliers]);
 
   const filteredSuppliers = useMemo(() => {
     if (!search.trim()) return supplierList;
     const q = search.toLowerCase();
     return supplierList.filter(
-      (s) => s.name.toLowerCase().includes(q) || (s.phone && s.phone.includes(q))
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.phone && s.phone.includes(q)) ||
+        (s.gstin && s.gstin.toLowerCase().includes(q))
     );
   }, [supplierList, search]);
 
@@ -154,6 +232,82 @@ export default function LedgerScreen({
     });
   }, [selectedSupplier]);
 
+  // ==================== SUPPLIER ADD / EDIT HANDLERS ====================
+  const handleOpenAddSupplier = () => {
+    setEditingSupplier(null);
+    setSupplierFormName('');
+    setSupplierFormPhone('');
+    setSupplierFormGstin('');
+    setSupplierFormOpBal('');
+    setIsSupplierModalOpen(true);
+  };
+
+  const handleOpenEditSupplier = (e, sup) => {
+    if (e) e.stopPropagation();
+    setEditingSupplier(sup);
+    setSupplierFormName(sup.name || '');
+    setSupplierFormPhone(sup.phone || '');
+    setSupplierFormGstin(sup.gstin || '');
+    setSupplierFormOpBal(sup.openingBalance !== undefined ? String(sup.openingBalance) : '');
+    setIsSupplierModalOpen(true);
+  };
+
+  const handleSaveSupplier = (e) => {
+    e.preventDefault();
+    if (!supplierFormName.trim()) {
+      showToast('Supplier Name is required!');
+      return;
+    }
+    const cleanName = supplierFormName.trim();
+    const cleanPhone = supplierFormPhone.trim();
+    const cleanGstin = supplierFormGstin.trim().toUpperCase();
+    const cleanOpBal = Number(supplierFormOpBal) || 0;
+
+    let updated;
+    if (editingSupplier) {
+      let matched = false;
+      updated = savedSuppliers.map((s) => {
+        if (s.id === editingSupplier.id || s.name.toLowerCase() === editingSupplier.name.toLowerCase()) {
+          matched = true;
+          return {
+            ...s,
+            name: cleanName,
+            phone: cleanPhone,
+            gstin: cleanGstin,
+            openingBalance: cleanOpBal,
+          };
+        }
+        return s;
+      });
+      if (!matched) {
+        updated.push({
+          id: editingSupplier.id || `sup-${Date.now()}`,
+          name: cleanName,
+          phone: cleanPhone,
+          gstin: cleanGstin,
+          openingBalance: cleanOpBal,
+        });
+      }
+      if (selectedSupplierName === editingSupplier.name) {
+        setSelectedSupplierName(cleanName);
+      }
+    } else {
+      const newSup = {
+        id: `sup-${Date.now()}`,
+        name: cleanName,
+        phone: cleanPhone,
+        gstin: cleanGstin,
+        openingBalance: cleanOpBal,
+      };
+      updated = [newSup, ...savedSuppliers];
+    }
+
+    setSavedSuppliers(updated);
+    Storage.saveSuppliers(updated);
+    setIsSupplierModalOpen(false);
+    showToast(editingSupplier ? 'Supplier updated successfully!' : 'Supplier added successfully!');
+  };
+
   // ==================== SHARE HANDLERS ====================
   const handleShareCustomerWhatsApp = async () => {
     if (!selectedCustomer) return;
@@ -175,11 +329,20 @@ export default function LedgerScreen({
         '_'
       );
 
+      const filterLabel =
+        statementFilter === 'Q_SALE'
+          ? ' [Q-Sale / கொட்டேஷன்]'
+          : statementFilter === 'REGULAR'
+          ? ' [Regular Sale / விற்பனை]'
+          : '';
+      const gstinLine = selectedCustomer.gstin ? `GSTIN: ${selectedCustomer.gstin}\n` : '';
+
       const whatsappMsg =
         `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
-        `*Customer Account Statement*\n` +
+        `*Customer Account Statement${filterLabel}*\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `Customer: *${selectedCustomer.name}*\n` +
+        gstinLine +
         `Date: ${new Date().toLocaleDateString('en-IN')}\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
         `Total Billed: Rs. ${Number(currentCustomerBalance.totalSales).toFixed(2)}\n` +
@@ -212,13 +375,21 @@ export default function LedgerScreen({
       return;
     }
 
+    const opBalLine =
+      Number(selectedSupplier.openingBalance) > 0
+        ? `Opening Balance: Rs. ${Number(selectedSupplier.openingBalance).toFixed(2)}\n`
+        : '';
+    const gstinLine = selectedSupplier.gstin ? `GSTIN: ${selectedSupplier.gstin}\n` : '';
+
     const whatsappMsg =
       `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
       `*Supplier Purchase Account Statement*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
       `Supplier: *${selectedSupplier.name}*\n` +
+      gstinLine +
       `Date: ${new Date().toLocaleDateString('en-IN')}\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
+      opBalLine +
       `Total Purchases: Rs. ${Number(selectedSupplier.totalPurchases).toFixed(2)}\n` +
       `Total Paid: Rs. ${Number(selectedSupplier.totalPaid).toFixed(2)}\n` +
       `*Balance Payable: Rs. ${Number(selectedSupplier.netDue).toFixed(2)}*\n` +
@@ -236,8 +407,7 @@ export default function LedgerScreen({
       showToast('No customer phone number!');
       return;
     }
-    const msg =
-      `${shop.name || 'KVK THANIYA MANDI'}: Dear ${selectedCustomer.name}, your current outstanding balance is Rs. ${Number(currentCustomerBalance.netDue).toFixed(2)}. Thank you!`;
+    const msg = `${shop.name || 'KVK THANIYA MANDI'}: Dear ${selectedCustomer.name}, your current outstanding balance is Rs. ${Number(currentCustomerBalance.netDue).toFixed(2)}. Thank you!`;
     sendDirectSMS(selectedCustomer.phone, msg);
   };
 
@@ -246,8 +416,7 @@ export default function LedgerScreen({
       showToast('No supplier phone number!');
       return;
     }
-    const msg =
-      `${shop.name || 'KVK THANIYA MANDI'}: Dear ${selectedSupplier.name}, purchase account statement balance is Rs. ${Number(selectedSupplier.netDue).toFixed(2)}. Thank you!`;
+    const msg = `${shop.name || 'KVK THANIYA MANDI'}: Dear ${selectedSupplier.name}, purchase account statement balance is Rs. ${Number(selectedSupplier.netDue).toFixed(2)}. Thank you!`;
     sendDirectSMS(selectedSupplier.phone, msg);
   };
 
@@ -308,6 +477,12 @@ export default function LedgerScreen({
                   <Phone className="w-3.5 h-3.5 text-emerald-600" />
                   {selectedCustomer.phone}
                 </div>
+                {selectedCustomer.gstin && (
+                  <div className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 border border-indigo-100">
+                    <Building2 className="w-3 h-3 text-indigo-500" />
+                    <span>GST:</span> {selectedCustomer.gstin}
+                  </div>
+                )}
                 {selectedCustomer.address && (
                   <div className="text-xs text-slate-400 mt-1">
                     {selectedCustomer.address}
@@ -331,6 +506,43 @@ export default function LedgerScreen({
                   <Trash2 className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Filter Toggle: All vs Regular Sale vs Q-Sale */}
+            <div className="bg-slate-100 p-1 rounded-xl flex gap-1 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setStatementFilter('ALL')}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  statementFilter === 'ALL'
+                    ? 'bg-white text-slate-900 shadow-xs font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                All Bills
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatementFilter('REGULAR')}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  statementFilter === 'REGULAR'
+                    ? 'bg-blue-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🏢 Regular
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatementFilter('Q_SALE')}
+                className={`flex-1 py-1.5 rounded-lg transition-all ${
+                  statementFilter === 'Q_SALE'
+                    ? 'bg-purple-600 text-white shadow-xs font-black'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📦 Q-Sale
+              </button>
             </div>
 
             {/* Summary Cards */}
@@ -383,7 +595,7 @@ export default function LedgerScreen({
 
             {customerLedger.length === 0 ? (
               <div className="text-center py-6 text-slate-400 text-xs">
-                No transactions recorded for this customer yet.
+                No transactions recorded for this customer in this category yet.
               </div>
             ) : (
               <div className="space-y-2">
@@ -396,7 +608,9 @@ export default function LedgerScreen({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`font-bold text-[10px] px-1.5 py-0.5 rounded ${
-                            t.type === 'SALE'
+                            t.type === 'Q_SALE'
+                              ? 'bg-purple-100 text-purple-700'
+                              : t.type === 'SALE'
                               ? 'bg-blue-100 text-blue-700'
                               : 'bg-emerald-100 text-emerald-700'
                           }`}
@@ -460,29 +674,51 @@ export default function LedgerScreen({
                     {selectedSupplier.phone}
                   </div>
                 )}
+                {selectedSupplier.gstin && (
+                  <div className="text-[11px] font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 border border-indigo-100">
+                    <Building2 className="w-3 h-3 text-indigo-500" />
+                    <span>GST:</span> {selectedSupplier.gstin}
+                  </div>
+                )}
                 <div className="text-xs text-slate-400 mt-1">
                   {selectedSupplier.billsCount} Purchase Bills Recorded
                 </div>
               </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => handleOpenEditSupplier(e, selectedSupplier)}
+                  className="p-2 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                  title="Edit Supplier (GSTIN / Opening Balance)"
+                >
+                  <Edit2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 text-center">
+            {/* Summary Cards: 4 columns including Opening Balance */}
+            <div className="grid grid-cols-4 gap-1.5 pt-2 border-t border-slate-100 text-center">
               <div className="p-2 bg-slate-50 rounded-lg">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Purchase</div>
+                <div className="text-[9px] text-slate-400 font-bold uppercase truncate">Opening Bal</div>
+                <div className="font-extrabold text-slate-800 text-xs mt-0.5">
+                  {formatCurrency(selectedSupplier.openingBalance || 0)}
+                </div>
+              </div>
+              <div className="p-2 bg-slate-50 rounded-lg">
+                <div className="text-[9px] text-slate-400 font-bold uppercase truncate">Total Purchase</div>
                 <div className="font-extrabold text-slate-800 text-xs mt-0.5">
                   {formatCurrency(selectedSupplier.totalPurchases)}
                 </div>
               </div>
               <div className="p-2 bg-slate-50 rounded-lg">
-                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Paid</div>
+                <div className="text-[9px] text-slate-400 font-bold uppercase truncate">Total Paid</div>
                 <div className="font-extrabold text-emerald-600 text-xs mt-0.5">
                   {formatCurrency(selectedSupplier.totalPaid)}
                 </div>
               </div>
               <div className="p-2 bg-amber-50 rounded-lg">
-                <div className="text-[10px] text-amber-700 font-bold uppercase">To Pay Supplier</div>
-                <div className="font-black text-amber-700 text-sm mt-0.5">
+                <div className="text-[9px] text-amber-700 font-bold uppercase truncate">To Pay</div>
+                <div className="font-black text-amber-700 text-xs mt-0.5">
                   {formatCurrency(selectedSupplier.netDue)}
                 </div>
               </div>
@@ -515,7 +751,7 @@ export default function LedgerScreen({
 
             {selectedSupplierBills.length === 0 ? (
               <div className="text-center py-6 text-slate-400 text-xs">
-                No purchase bills found for this supplier.
+                No purchase bills found for this supplier yet.
               </div>
             ) : (
               <div className="space-y-2">
@@ -538,6 +774,11 @@ export default function LedgerScreen({
                         >
                           {p.paymentStatus}
                         </span>
+                        {p.isQPurchase && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-purple-100 text-purple-700">
+                            Q-Purchase
+                          </span>
+                        )}
                       </div>
                       <span className="text-slate-400 text-[11px]">{formatDate(p.date)}</span>
                     </div>
@@ -584,7 +825,7 @@ export default function LedgerScreen({
               }}
               className={`py-2 text-[10px] sm:text-xs font-black rounded-lg transition-all flex flex-col items-center justify-center gap-1 ${
                 activeLedgerTab === 'suppliers'
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
@@ -635,16 +876,65 @@ export default function LedgerScreen({
           {activeLedgerTab === 'customers' && (
             <>
               {/* Market Outstanding Due Banner */}
-              <div className="bg-gradient-to-r from-blue-700 to-indigo-800 rounded-2xl p-4 text-white shadow-md">
-                <div className="text-xs text-blue-200 font-medium uppercase tracking-wider">
-                  Total Market Outstanding Due (வாடிக்கையாளர் பாக்கி)
+              <div
+                className={`rounded-2xl p-4 text-white shadow-md transition-all ${
+                  customerSubTab === 'qsale'
+                    ? 'bg-gradient-to-r from-purple-700 to-indigo-800'
+                    : customerSubTab === 'regular'
+                    ? 'bg-gradient-to-r from-blue-700 to-indigo-800'
+                    : 'bg-gradient-to-r from-slate-800 to-slate-900'
+                }`}
+              >
+                <div className="text-xs text-white/80 font-medium uppercase tracking-wider">
+                  {customerSubTab === 'qsale'
+                    ? 'Q-Sale Outstanding Due (கொட்டேஷன் வாடிக்கையாளர் பாக்கி)'
+                    : customerSubTab === 'regular'
+                    ? 'Regular Sale Outstanding Due (GST வாடிக்கையாளர் பாக்கி)'
+                    : 'Total Market Outstanding Due (மொத்த வாடிக்கையாளர் பாக்கி)'}
                 </div>
                 <div className="text-2xl font-black mt-1">
-                  {formatCurrency(totalOutstandingAll)}
+                  {formatCurrency(currentTabOutstanding)}
                 </div>
-                <div className="text-[11px] text-blue-200/80 mt-1">
-                  Across {customers.length} registered customers
+                <div className="text-[11px] text-white/70 mt-1">
+                  Across {displayedCustomers.length} customers listed
                 </div>
+              </div>
+
+              {/* Customer Sub-Tabs: Sale vs Q-Sale vs All */}
+              <div className="bg-slate-100 p-1 rounded-xl flex gap-1 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setCustomerSubTab('regular')}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    customerSubTab === 'regular'
+                      ? 'bg-blue-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <span>🏢 Regular Sale</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerSubTab('qsale')}
+                  className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    customerSubTab === 'qsale'
+                      ? 'bg-purple-600 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <span>📦 Q-Sale</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerSubTab('all')}
+                  className={`px-3 py-2 rounded-lg flex items-center justify-center gap-1 transition-all ${
+                    customerSubTab === 'all'
+                      ? 'bg-slate-800 text-white shadow-xs font-black'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <span>All ({customers.length})</span>
+                </button>
               </div>
 
               {/* Search bar & Add Customer Button */}
@@ -653,7 +943,7 @@ export default function LedgerScreen({
                   <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search customer by name or phone..."
+                    placeholder="Search customer by name, phone or GSTIN..."
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-xs"
@@ -670,62 +960,96 @@ export default function LedgerScreen({
 
               {/* Customer Cards List */}
               <div className="space-y-2">
-                {filteredCustomers.length === 0 ? (
+                {displayedCustomers.length === 0 ? (
                   <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                    No customers found matching "{search}".
+                    {search ? `No customers found matching "${search}".` : 'No customers found in this category.'}
                   </div>
                 ) : (
-                  filteredCustomers.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => setSelectedCustomerId(c.id)}
-                      className="bg-white rounded-xl p-3.5 border border-slate-200 hover:border-blue-400 shadow-xs cursor-pointer transition-all flex items-center justify-between gap-3 active:bg-slate-50"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-slate-800 text-sm truncate">{c.name}</div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
-                          <Phone className="w-3 h-3 text-emerald-600" />
-                          {c.phone}
-                        </div>
-                        {c.address && (
-                          <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                            {c.address}
+                  displayedCustomers.map((c) => {
+                    const dueAmt =
+                      customerSubTab === 'qsale'
+                        ? c.qBalance.netDue
+                        : customerSubTab === 'regular'
+                        ? c.regBalance.netDue
+                        : c.balance.netDue;
+
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          setSelectedCustomerId(c.id);
+                          setStatementFilter(
+                            customerSubTab === 'qsale'
+                              ? 'Q_SALE'
+                              : customerSubTab === 'regular'
+                              ? 'REGULAR'
+                              : 'ALL'
+                          );
+                        }}
+                        className="bg-white rounded-xl p-3.5 border border-slate-200 hover:border-blue-400 shadow-xs cursor-pointer transition-all flex items-center justify-between gap-3 active:bg-slate-50"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-1.5">
+                            <span>{c.name}</span>
+                            {c.gstin && (
+                              <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                                GST
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
+                          <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
+                            <Phone className="w-3 h-3 text-emerald-600" />
+                            {c.phone}
+                          </div>
+                          {c.gstin && (
+                            <div className="text-[10px] font-mono text-indigo-600 font-semibold mt-0.5 truncate">
+                              GST: {c.gstin}
+                            </div>
+                          )}
+                          {c.address && (
+                            <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                              {c.address}
+                            </div>
+                          )}
+                        </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                          Balance
-                        </span>
-                        <span
-                          className={`text-sm font-extrabold ${
-                            c.balance.netDue > 0 ? 'text-red-600' : 'text-emerald-600'
-                          }`}
-                        >
-                          {formatCurrency(c.balance.netDue)}
-                        </span>
-                      </div>
+                        <div className="text-right shrink-0">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                            {customerSubTab === 'qsale'
+                              ? 'Q-Sale Bal'
+                              : customerSubTab === 'regular'
+                              ? 'Regular Bal'
+                              : 'Balance'}
+                          </span>
+                          <span
+                            className={`text-sm font-extrabold ${
+                              dueAmt > 0 ? 'text-red-600' : 'text-emerald-600'
+                            }`}
+                          >
+                            {formatCurrency(dueAmt)}
+                          </span>
+                        </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={(e) => handleEditCustomerClick(e, c)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit Customer"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => handleDeleteCustomerClick(e, c)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete Customer"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <ChevronRight className="w-4 h-4 text-slate-300 ml-0.5" />
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={(e) => handleEditCustomerClick(e, c)}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Edit Customer"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteCustomerClick(e, c)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Customer"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <ChevronRight className="w-4 h-4 text-slate-300 ml-0.5" />
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </>
@@ -743,27 +1067,36 @@ export default function LedgerScreen({
                   {formatCurrency(totalSupplierPayable)}
                 </div>
                 <div className="text-[11px] text-amber-200/80 mt-1">
-                  Across {supplierList.length} suppliers from purchases
+                  Across {supplierList.length} suppliers (including opening balance)
                 </div>
               </div>
 
-              {/* Search Suppliers */}
-              <div className="relative">
-                <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search supplier by name or phone..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
-                />
+              {/* Search Suppliers & Add Supplier Button */}
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search supplier by name, phone or GSTIN..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs"
+                  />
+                </div>
+                <button
+                  onClick={handleOpenAddSupplier}
+                  className="px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ Add</span>
+                </button>
               </div>
 
               {/* Suppliers List */}
               <div className="space-y-2">
                 {filteredSuppliers.length === 0 ? (
                   <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-slate-200 text-slate-400 text-xs">
-                    No suppliers found. Purchase entries will automatically add suppliers here.
+                    {search ? `No suppliers found matching "${search}".` : 'No suppliers found. Click "+ Add" to create a new supplier.'}
                   </div>
                 ) : (
                   filteredSuppliers.map((s) => (
@@ -773,13 +1106,30 @@ export default function LedgerScreen({
                       className="bg-white rounded-xl p-3.5 border border-slate-200 hover:border-amber-400 shadow-xs cursor-pointer transition-all flex items-center justify-between gap-3 active:bg-slate-50"
                     >
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-slate-800 text-sm truncate">{s.name}</div>
+                        <div className="font-bold text-slate-800 text-sm truncate flex items-center gap-1.5">
+                          <span>{s.name}</span>
+                          {s.gstin && (
+                            <span className="text-[10px] font-mono font-bold text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                              GST
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5">
                           <Phone className="w-3 h-3 text-blue-600" />
                           {s.phone || 'No Phone'}
                         </div>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {s.billsCount} Purchase Bills
+                        {s.gstin && (
+                          <div className="text-[10px] font-mono text-indigo-600 font-semibold mt-0.5 truncate">
+                            GST: {s.gstin}
+                          </div>
+                        )}
+                        <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-2">
+                          <span>{s.billsCount} Bills</span>
+                          {s.openingBalance > 0 && (
+                            <span className="text-amber-700 font-semibold">
+                              Op. Bal: {formatCurrency(s.openingBalance)}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -796,13 +1146,137 @@ export default function LedgerScreen({
                         </span>
                       </div>
 
-                      <ChevronRight className="w-4 h-4 text-slate-300 ml-0.5" />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={(e) => handleOpenEditSupplier(e, s)}
+                          className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Edit Supplier"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <ChevronRight className="w-4 h-4 text-slate-300 ml-0.5" />
+                      </div>
                     </div>
                   ))
                 )}
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* SUPPLIER ADD / EDIT MODAL */}
+      {isSupplierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-xs p-0 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom duration-200 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50 shrink-0">
+              <div className="flex items-center gap-2">
+                <Truck className="w-5 h-5 text-amber-600" />
+                <h3 className="font-semibold text-slate-800 text-base">
+                  {editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsSupplierModalOpen(false)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSupplier} className="p-4 sm:p-5 space-y-3.5 overflow-y-auto flex-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                  Supplier Name *
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="e.g. Raju Agro Pollachi / Kavi"
+                    value={supplierFormName}
+                    onChange={(e) => setSupplierFormName(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white text-sm"
+                    required
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                  WhatsApp Phone Number
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-3 w-4 h-4 text-emerald-600" />
+                  <input
+                    type="tel"
+                    placeholder="10-digit number e.g. 9842112345"
+                    value={supplierFormPhone}
+                    onChange={(e) => setSupplierFormPhone(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white text-sm"
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                  GSTIN / GST Number (Optional)
+                </label>
+                <div className="relative">
+                  <Building2 className="absolute left-3 top-3 w-4 h-4 text-indigo-500" />
+                  <input
+                    type="text"
+                    placeholder="e.g. 33ABCDE1234F1Z5"
+                    value={supplierFormGstin}
+                    onChange={(e) => setSupplierFormGstin(e.target.value.toUpperCase())}
+                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm uppercase font-mono tracking-wider"
+                    maxLength={15}
+                  />
+                </div>
+              </div>
+
+              {/* OPENING BALANCE (ஆரம்ப இருப்பு / பழைய பாக்கி) */}
+              <div className="bg-amber-50/60 p-3 rounded-xl border border-amber-200 space-y-1.5">
+                <label className="block text-xs font-bold text-amber-900 uppercase flex items-center gap-1">
+                  <Wallet className="w-3.5 h-3.5 text-amber-600" />
+                  Opening Balance / ஆரம்ப இருப்பு (பழைய பாக்கி ₹)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="0.00"
+                    value={supplierFormOpBal}
+                    onChange={(e) => setSupplierFormOpBal(e.target.value)}
+                    className="w-full pl-7 pr-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 font-extrabold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <p className="text-[10px] text-amber-800">
+                  சப்ளையருக்கு கொடுக்க வேண்டிய பழைய பாக்கி இருந்தால் இங்கே போடவும். Ledger-ல் பாக்கியாக சேரும்.
+                </p>
+              </div>
+
+              <div className="pt-2 flex gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsSupplierModalOpen(false)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-amber-600 text-white rounded-xl font-semibold hover:bg-amber-700 shadow-md flex items-center justify-center gap-1.5 text-sm"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {editingSupplier ? 'Update Supplier' : 'Save Supplier'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

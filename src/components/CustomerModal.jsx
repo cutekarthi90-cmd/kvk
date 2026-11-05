@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Phone, MapPin, Check, Wallet } from 'lucide-react';
+import { X, User, Phone, MapPin, Check, Wallet, Building2 } from 'lucide-react';
 
 export default function CustomerModal({ isOpen, onClose, onSave, existingCustomer = null }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [gstin, setGstin] = useState('');
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
   const [openingBalance, setOpeningBalance] = useState('');
@@ -14,6 +15,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, existingCustome
     if (existingCustomer) {
       setName(existingCustomer.name || '');
       setPhone(existingCustomer.phone || '');
+      setGstin(existingCustomer.gstin || '');
       setAddress(existingCustomer.address || '');
       setNotes(existingCustomer.notes || '');
       setOpeningBalance(existingCustomer.openingBalance !== undefined ? String(existingCustomer.openingBalance) : '');
@@ -21,6 +23,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, existingCustome
     } else {
       setName('');
       setPhone('');
+      setGstin('');
       setAddress('');
       setNotes('');
       setOpeningBalance('');
@@ -52,6 +55,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, existingCustome
       id: existingCustomer?.id || `cust-${Date.now()}`,
       name: name.trim(),
       phone: cleanPhone,
+      gstin: gstin.trim().toUpperCase(),
       address: address.trim(),
       notes: notes.trim(),
       openingBalance: Number(openingBalance) || 0,
@@ -128,6 +132,26 @@ export default function CustomerModal({ isOpen, onClose, onSave, existingCustome
             </div>
             <p className="text-[10px] text-slate-400 mt-1">
               PDF bills and receipts will be sent to this WhatsApp number.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+              GSTIN / GST Number (Optional)
+            </label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-3 w-4 h-4 text-indigo-500" />
+              <input
+                type="text"
+                placeholder="e.g. 33AAAAA0000A1Z5"
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value.toUpperCase())}
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm uppercase font-mono tracking-wider"
+                maxLength={15}
+              />
+            </div>
+            <p className="text-[10px] text-slate-400 mt-0.5">
+              Customer GSTIN will appear on official GST tax invoices.
             </p>
           </div>
 

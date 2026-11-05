@@ -35,6 +35,8 @@ export default function PurchaseScreen({
 
   const [supplierName, setSupplierName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
+  const [supplierGstin, setSupplierGstin] = useState('');
+  const [supplierOpeningBalance, setSupplierOpeningBalance] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
   const [cart, setCart] = useState([]);
@@ -112,6 +114,8 @@ export default function PurchaseScreen({
     setCart([]);
     setSupplierName('');
     setSupplierPhone('');
+    setSupplierGstin('');
+    setSupplierOpeningBalance('');
     setCustomBillNo('');
     setFreightCharges('');
     setDiscount('');
@@ -125,10 +129,14 @@ export default function PurchaseScreen({
     if (!s) {
       setSupplierName('');
       setSupplierPhone('');
+      setSupplierGstin('');
+      setSupplierOpeningBalance('');
       return;
     }
     setSupplierName(s.name);
     setSupplierPhone(s.phone || '');
+    setSupplierGstin(s.gstin || '');
+    setSupplierOpeningBalance(s.openingBalance !== undefined ? String(s.openingBalance) : '');
   };
 
   const handleSavePurchaseBill = (e) => {
@@ -144,6 +152,8 @@ export default function PurchaseScreen({
 
     const cleanSupName = supplierName.trim();
     const cleanSupPhone = supplierPhone.trim();
+    const cleanSupGstin = supplierGstin.trim().toUpperCase();
+    const cleanSupOpeningBal = Number(supplierOpeningBalance) || 0;
 
     // Auto-save supplier to master if not existing
     const existing = savedSuppliers.find(
@@ -154,8 +164,17 @@ export default function PurchaseScreen({
         id: `sup-${Date.now()}`,
         name: cleanSupName,
         phone: cleanSupPhone,
+        gstin: cleanSupGstin,
+        openingBalance: cleanSupOpeningBal,
       };
       const updatedSups = [newSup, ...savedSuppliers];
+      setSavedSuppliers(updatedSups);
+      Storage.saveSuppliers(updatedSups);
+    } else if (cleanSupGstin && !existing.gstin) {
+      // update existing supplier gstin if provided
+      const updatedSups = savedSuppliers.map((s) =>
+        s.id === existing.id ? { ...s, gstin: cleanSupGstin, openingBalance: cleanSupOpeningBal || s.openingBalance || 0 } : s
+      );
       setSavedSuppliers(updatedSups);
       Storage.saveSuppliers(updatedSups);
     }
@@ -166,6 +185,7 @@ export default function PurchaseScreen({
       date,
       supplierName: cleanSupName,
       supplierPhone: cleanSupPhone,
+      supplierGstin: cleanSupGstin || existing?.gstin || '',
       isQPurchase,
       billType: isQPurchase ? 'Q_PURCHASE' : 'GST_BILL',
       items: cart.map((i) => ({
@@ -371,6 +391,8 @@ export default function PurchaseScreen({
                   setIsAddingNewSupplier(!isAddingNewSupplier);
                   setSupplierName('');
                   setSupplierPhone('');
+                  setSupplierGstin('');
+                  setSupplierOpeningBalance('');
                 }}
                 className="text-xs text-blue-600 font-bold hover:underline flex items-center gap-1"
               >
@@ -392,7 +414,7 @@ export default function PurchaseScreen({
                   <option value="">-- Choose Existing Supplier ({savedSuppliers.length}) --</option>
                   {savedSuppliers.map((s) => (
                     <option key={s.name} value={s.name}>
-                      {s.name} {s.phone ? `(${s.phone})` : ''}
+                      {s.name} {s.phone ? `(${s.phone})` : ''} {s.gstin ? `[GST: ${s.gstin}]` : ''}
                     </option>
                   ))}
                 </select>
@@ -402,14 +424,19 @@ export default function PurchaseScreen({
                     <div>
                       <span className="font-bold text-blue-900">{supplierName}</span>
                       {supplierPhone && <span className="text-slate-500 ml-2">Ph: {supplierPhone}</span>}
+                      {supplierGstin && (
+                        <span className="text-indigo-600 ml-2 font-mono text-[11px] font-bold">
+                          GST: {supplierGstin}
+                        </span>
+                      )}
                     </div>
                     <span className="text-[10px] text-blue-600 font-semibold">Selected</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2 animate-in fade-in duration-200">
-                <div>
+              <div className="space-y-2 animate-in fade-in duration-200">
+                <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Supplier Name *"
@@ -419,14 +446,30 @@ export default function PurchaseScreen({
                     required
                     autoFocus
                   />
-                </div>
-                <div>
                   <input
                     type="tel"
                     placeholder="Phone (WhatsApp)"
                     value={supplierPhone}
                     onChange={(e) => setSupplierPhone(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    placeholder="GSTIN (Optional)"
+                    value={supplierGstin}
+                    onChange={(e) => setSupplierGstin(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono uppercase text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    maxLength={15}
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="Opening Bal (பழைய பாக்கி ₹)"
+                    value={supplierOpeningBalance}
+                    onChange={(e) => setSupplierOpeningBalance(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>

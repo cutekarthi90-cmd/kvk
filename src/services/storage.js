@@ -1397,10 +1397,15 @@ export const Storage = {
 
   // --- FINANCIAL CALCULATIONS & LEDGERS ---
 
-  // Calculate supplier balance: Total Purchases - Immediate Paid - Later Payments - Discounts
+  // Calculate supplier balance: Opening Balance + Total Purchases - Immediate Paid - Later Payments - Discounts
   getSupplierBalance: (supplierName) => {
-    if (!supplierName) return { totalPurchases: 0, totalPaid: 0, totalDiscount: 0, netDue: 0 };
+    if (!supplierName) return { openingBalance: 0, totalPurchases: 0, totalPaid: 0, totalDiscount: 0, netDue: 0 };
     const sName = supplierName.trim().toLowerCase();
+    const supObj = (Storage.getSuppliers() || []).find(
+      (s) => (s.name || '').trim().toLowerCase() === sName
+    );
+    const opBal = Number(supObj?.openingBalance) || 0;
+
     const purchases = Storage.getPurchases().filter(
       (p) => (p.supplierName || '').trim().toLowerCase() === sName
     );
@@ -1419,9 +1424,10 @@ export const Storage = {
 
     const totalPaid = immediatePaid + laterPaid;
     const totalDiscount = totalPurchaseDiscount + laterDiscount;
-    const netDue = Math.max(0, totalPurchases - totalPaid - laterDiscount);
+    const netDue = Math.max(0, opBal + totalPurchases - totalPaid - laterDiscount);
 
     return {
+      openingBalance: opBal,
       totalPurchases,
       totalPaid,
       totalDiscount,
@@ -1516,15 +1522,27 @@ export const Storage = {
     return initial + gstPurchasedQty - gstSoldQty;
   },
 
-  // Calculate customer balance including Opening Balance & Sales Returns
-  getCustomerBalance: (customerId) => {
+  // Calculate customer balance including Opening Balance & Sales Returns (can filter by type: 'ALL' | 'REGULAR' | 'Q_SALE')
+  getCustomerBalance: (customerId, type = 'ALL') => {
     const cust = Storage.getCustomers().find((c) => c.id === customerId);
-    const opBal = Number(cust?.openingBalance) || 0;
+    const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
+    // For Q-Sale separate view, opening balance is typically attached to regular account unless specified
+    const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
 
-    const sales = Storage.getSales().filter((s) => s.customerId === customerId);
-    const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
-    const returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+    let sales = Storage.getSales().filter((s) => s.customerId === customerId);
+    let receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+    let returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+
+    if (type === 'REGULAR') {
+      sales = sales.filter((s) => !s.isQSale && s.billType !== 'Q_SALE');
+      receipts = receipts.filter((r) => !r.isQSale && r.billType !== 'Q_SALE');
+      returns = returns.filter((r) => !r.isQSale && r.billType !== 'Q_SALE');
+    } else if (type === 'Q_SALE') {
+      sales = sales.filter((s) => s.isQSale || s.billType === 'Q_SALE');
+      receipts = receipts.filter((r) => r.isQSale || r.billType === 'Q_SALE');
+      returns = returns.filter((r) => r.isQSale || r.billType === 'Q_SALE');
+    }
 
     const totalSales = sales.reduce((sum, s) => sum + (Number(s.grandTotal) || 0), 0);
     const totalReceipts = receipts.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
@@ -1551,18 +1569,29 @@ export const Storage = {
   },
 
   // Full customer ledger transactions sorted by date ascending with Opening Balance & Returns
-  getCustomerLedger: (customerId) => {
+  getCustomerLedger: (customerId, type = 'ALL') => {
     const cust = Storage.getCustomers().find((c) => c.id === customerId);
-    const opBal = Number(cust?.openingBalance) || 0;
+    const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
+    const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
 
-    const sales = Storage.getSales().filter((s) => s.customerId === customerId);
-    const receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
-    const returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+    let sales = Storage.getSales().filter((s) => s.customerId === customerId);
+    let receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
+    let returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+
+    if (type === 'REGULAR') {
+      sales = sales.filter((s) => !s.isQSale && s.billType !== 'Q_SALE');
+      receipts = receipts.filter((r) => !r.isQSale && r.billType !== 'Q_SALE');
+      returns = returns.filter((r) => !r.isQSale && r.billType !== 'Q_SALE');
+    } else if (type === 'Q_SALE') {
+      sales = sales.filter((s) => s.isQSale || s.billType === 'Q_SALE');
+      receipts = receipts.filter((r) => r.isQSale || r.billType === 'Q_SALE');
+      returns = returns.filter((r) => r.isQSale || r.billType === 'Q_SALE');
+    }
 
     const transactions = [];
 
-    // 1. Opening Balance Transaction
+    // 1. Opening Balance Transaction (shown in ALL or REGULAR)
     if (opBal > 0) {
       const opDate = cust.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
       transactions.push({
