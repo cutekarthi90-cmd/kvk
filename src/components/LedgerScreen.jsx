@@ -36,6 +36,7 @@ export default function LedgerScreen({
   sales = [],
   receipts = [],
   purchases = [],
+  salesReturns = [],
   suppliers: externalSuppliers,
   supplierPayments = [],
   expenses = [],

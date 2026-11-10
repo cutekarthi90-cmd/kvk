@@ -481,6 +481,7 @@ export default function App() {
             sales={sales}
             receipts={receipts}
             purchases={purchases}
+            salesReturns={salesReturns}
             suppliers={suppliers}
             supplierPayments={supplierPayments}
             expenses={expenses}
