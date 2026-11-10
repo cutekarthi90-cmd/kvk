@@ -56,7 +56,7 @@ export default function Header({ shop, activeTab, onOpenAddCustomer, syncStatus 
     receipts: 'Receipt Voucher',
     purchase: 'Purchase & Stock',
     ledger: 'Customer Ledger',
-    items: '15 Items Master',
+    items: 'Stock & Items',
     settings: 'Shop Settings',
   };
 

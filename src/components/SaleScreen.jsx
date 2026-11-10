@@ -26,12 +26,15 @@ import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone
 import { Storage, getFinancialYear } from '../services/storage';
 
 export default function SaleScreen({
-  customers,
-  items,
-  shop,
-  sales,
+  customers = [],
+  items = [],
+  shop = {},
+  sales = [],
+  salesReturns: externalSalesReturns,
   onSaveSale,
   onDeleteSale,
+  onSaveSalesReturn,
+  onDeleteSalesReturn,
   onOpenAddCustomer,
   preselectedCustomerId = '',
 }) {
@@ -63,7 +66,8 @@ export default function SaleScreen({
   const [selectedFY, setSelectedFY] = useState('ALL');
 
   // Sales Return states
-  const [salesReturns, setSalesReturns] = useState(() => Storage.getSalesReturns());
+  const [internalSalesReturns, setInternalSalesReturns] = useState(() => Storage.getSalesReturns());
+  const salesReturns = externalSalesReturns || internalSalesReturns;
   const [returnCustomerId, setReturnCustomerId] = useState('');
   const [returnCustomerSearch, setReturnCustomerSearch] = useState('');
   const [returnDate, setReturnDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -501,9 +505,13 @@ export default function SaleScreen({
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newReturn, ...salesReturns];
-    setSalesReturns(updated);
-    Storage.saveSalesReturns(updated);
+    if (onSaveSalesReturn) {
+      onSaveSalesReturn(newReturn);
+    } else {
+      const updated = [newReturn, ...salesReturns];
+      setInternalSalesReturns(updated);
+      Storage.saveSalesReturns(updated);
+    }
 
     showToast(`Sales Return #SR-${returnNo} Saved! Stock increased & customer credited.`);
 
@@ -539,10 +547,14 @@ export default function SaleScreen({
 
   const handleDeleteSalesReturn = (retId) => {
     if (confirm('Delete this Sales Return? Stock and customer balance will be adjusted.')) {
-      const updated = salesReturns.filter((r) => r.id !== retId);
-      setSalesReturns(updated);
-      Storage.saveSalesReturns(updated);
-      Storage.recordDeletedId(retId);
+      if (onDeleteSalesReturn) {
+        onDeleteSalesReturn(retId);
+      } else {
+        const updated = salesReturns.filter((r) => r.id !== retId);
+        setInternalSalesReturns(updated);
+        Storage.saveSalesReturns(updated);
+        Storage.recordDeletedId(retId);
+      }
       showToast('Sales return deleted');
     }
   };

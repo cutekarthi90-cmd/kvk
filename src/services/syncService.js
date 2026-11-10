@@ -4,22 +4,24 @@ import { firebaseActions } from './firebaseService';
 const SERVER_URL_KEY = 'quickbill_server_url';
 
 export const getServerUrl = () => {
-  const saved = localStorage.getItem(SERVER_URL_KEY);
-  if (saved) return saved;
-
-  if (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null') {
-    // If accessed via HTTPS (like Render cloud, ngrok, domain)
-    if (window.location.protocol === 'https:' || window.location.hostname.includes('ngrok') || window.location.hostname.includes('render.com')) {
+  // If running in browser on Render cloud, ngrok, or custom domain
+  if (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file:')) {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
       return window.location.origin;
     }
-    // If accessed on local port 5000
     if (window.location.port === '5000') {
       return window.location.origin;
     }
   }
 
-  const host = window.location.hostname || '192.168.1.23';
-  return `http://${host}:5000`;
+  const saved = localStorage.getItem(SERVER_URL_KEY);
+  // Ignore stale local Wi-Fi IP so 5G cellular network connects to Render cloud directly
+  if (saved && !saved.includes('192.168.1.')) {
+    return saved;
+  }
+
+  return 'https://kvk-1.onrender.com';
 };
 
 export const setServerUrl = (url) => {
@@ -52,7 +54,6 @@ export const SyncService = {
 
     // Instant sync when user opens phone, unlocks screen, or switches back to Mandi app tab
     const handleWakeup = () => {
-      console.log('App wake-up event detected - instant poll & reconnect');
       SyncService.pollNow();
       if (!ws || ws.readyState !== WebSocket.OPEN) {
         SyncService.connect();
@@ -68,15 +69,15 @@ export const SyncService = {
 
   startPolling: () => {
     if (pollTimer) clearInterval(pollTimer);
-    // Background polling fallback every 3.5 seconds
+    // Ultra-fast background polling (every 1 second) so data entered on Phone 1 shows on Phone 2 in 1s max
     pollTimer = setInterval(() => {
       SyncService.pollNow();
-    }, 3500);
+    }, 1000);
   },
 
   startPingHeartbeat: () => {
     if (pingTimer) clearInterval(pingTimer);
-    // Ping WebSocket every 15s so Render/cellular proxies never drop idle connection
+    // Ping WebSocket every 10s so Render proxy never drops idle connection
     pingTimer = setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         try {
@@ -85,7 +86,7 @@ export const SyncService = {
       } else if (!ws || ws.readyState === WebSocket.CLOSED) {
         SyncService.connect();
       }
-    }, 15000);
+    }, 10000);
   },
 
   pollNow: async () => {
@@ -193,17 +194,16 @@ export const SyncService = {
         if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => {
           SyncService.connect();
-        }, 2500);
+        }, 1500);
       };
 
       ws.onerror = () => {
-        // Polling will handle updates while WS reconnects
         if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = setTimeout(() => SyncService.connect(), 2500);
+        reconnectTimer = setTimeout(() => SyncService.connect(), 1500);
       };
     } catch {
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => SyncService.connect(), 3000);
+      reconnectTimer = setTimeout(() => SyncService.connect(), 2000);
     }
   },
 

@@ -25,8 +25,13 @@ export default function ReceiptScreen({
   customers = [],
   receipts = [],
   shop = {},
+  suppliers: externalSuppliers,
+  supplierPayments: externalSupplierPayments,
   onSaveReceipt,
   onDeleteReceipt,
+  onSaveSupplierPayment,
+  onDeleteSupplierPayment,
+  onSaveSuppliers,
   onOpenAddCustomer,
   preselectedCustomerId = '',
 }) {
@@ -38,10 +43,12 @@ export default function ReceiptScreen({
   const [customerSearch, setCustomerSearch] = useState('');
 
   // Supplier Payment states
-  const [savedSuppliers, setSavedSuppliers] = useState(() => Storage.getSuppliers());
+  const [internalSuppliers, setInternalSuppliers] = useState(() => Storage.getSuppliers());
+  const savedSuppliers = externalSuppliers || internalSuppliers;
   const [selectedSupplierName, setSelectedSupplierName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
-  const [supplierPayments, setSupplierPayments] = useState(() => Storage.getSupplierPayments());
+  const [internalSupplierPayments, setInternalSupplierPayments] = useState(() => Storage.getSupplierPayments());
+  const supplierPayments = externalSupplierPayments || internalSupplierPayments;
 
   // Shared Form states
   const [amount, setAmount] = useState('');
@@ -277,9 +284,13 @@ export default function ReceiptScreen({
         notes: notes.trim(),
       };
 
-      const updatedPayments = [newPayment, ...supplierPayments];
-      setSupplierPayments(updatedPayments);
-      Storage.saveSupplierPayments(updatedPayments);
+      if (onSaveSupplierPayment) {
+        onSaveSupplierPayment(newPayment);
+      } else {
+        const updatedPayments = [newPayment, ...supplierPayments];
+        setInternalSupplierPayments(updatedPayments);
+        Storage.saveSupplierPayments(updatedPayments);
+      }
 
       // Auto-save supplier to master if not existing
       const existing = savedSuppliers.find(
@@ -292,8 +303,12 @@ export default function ReceiptScreen({
           phone: supplierPhone.trim(),
         };
         const updatedSups = [newSup, ...savedSuppliers];
-        setSavedSuppliers(updatedSups);
-        Storage.saveSuppliers(updatedSups);
+        if (onSaveSuppliers) {
+          onSaveSuppliers(updatedSups);
+        } else {
+          setInternalSuppliers(updatedSups);
+          Storage.saveSuppliers(updatedSups);
+        }
       }
 
       setLastSavedVoucher(newPayment);
@@ -493,9 +508,13 @@ export default function ReceiptScreen({
                         if (isCust) {
                           onDeleteReceipt(rec.id);
                         } else {
-                          const updated = supplierPayments.filter((p) => p.id !== rec.id);
-                          setSupplierPayments(updated);
-                          Storage.saveSupplierPayments(updated);
+                          if (onDeleteSupplierPayment) {
+                            onDeleteSupplierPayment(rec.id);
+                          } else {
+                            const updated = supplierPayments.filter((p) => p.id !== rec.id);
+                            setInternalSupplierPayments(updated);
+                            Storage.saveSupplierPayments(updated);
+                          }
                         }
                         showToast('Deleted voucher');
                       }}

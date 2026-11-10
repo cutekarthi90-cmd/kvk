@@ -1156,6 +1156,17 @@ export const getFinancialYear = (dateInput) => {
 
 export const Storage = {
   // --- TOMBSTONES & VERSION TRACKING (Prevents resurrected items on sync) ---
+  unblockProtectedItems: () => {
+    try {
+      const deleted = Storage.getDeletedIds();
+      const protectedIds = new Set(DEFAULT_ITEMS.map((i) => i.id));
+      const cleaned = deleted.filter((id) => !protectedIds.has(id));
+      if (cleaned.length !== deleted.length) {
+        localStorage.setItem(STORAGE_KEYS.DELETED_IDS, JSON.stringify(cleaned));
+      }
+    } catch {}
+  },
+
   getDeletedIds: () => {
     try {
       const data = localStorage.getItem(STORAGE_KEYS.DELETED_IDS);
@@ -1215,18 +1226,29 @@ export const Storage = {
   // --- ITEMS & STOCK MASTER ---
   getItems: () => {
     try {
+      Storage.unblockProtectedItems();
       const data = localStorage.getItem(STORAGE_KEYS.ITEMS);
       const deleted = Storage.getDeletedIds();
+      const map = new Map();
+      // Ensure all 32 standard Mandi items are always present!
+      DEFAULT_ITEMS.forEach((item) => {
+        map.set(item.id, { ...item, unit: 'Bag' });
+      });
+      // Merge with custom prices/stock stored in localStorage
       if (data) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed
-            .filter((item) => !deleted.includes(item.id))
-            .map((item) => ({ ...item, unit: 'Bag' }));
+        if (Array.isArray(parsed)) {
+          parsed.forEach((item) => {
+            if (!deleted.includes(item.id)) {
+              const existing = map.get(item.id);
+              map.set(item.id, existing ? { ...existing, ...item, unit: 'Bag' } : { ...item, unit: 'Bag' });
+            }
+          });
         }
       }
-      Storage.saveItems(DEFAULT_ITEMS);
-      return DEFAULT_ITEMS;
+      const list = Array.from(map.values());
+      localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(list));
+      return list;
     } catch {
       return DEFAULT_ITEMS;
     }
@@ -1774,9 +1796,24 @@ export const Storage = {
       return Array.from(map.values());
     };
 
+    // Merge items: always ensure all 32 items are kept, with server edits taking precedence
+    const mergedItems = (() => {
+      Storage.unblockProtectedItems();
+      const itemMap = new Map();
+      DEFAULT_ITEMS.forEach((i) => itemMap.set(i.id, { ...i, unit: 'Bag' }));
+      (Storage.getItems() || []).forEach((i) => itemMap.set(i.id, { ...i, unit: 'Bag' }));
+      (serverData.items || []).forEach((i) => {
+        const existing = itemMap.get(i.id);
+        itemMap.set(i.id, existing ? { ...existing, ...i, unit: 'Bag' } : { ...i, unit: 'Bag' });
+      });
+      const res = Array.from(itemMap.values());
+      localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(res));
+      return res;
+    })();
+
     return {
       shop: serverData.shop || Storage.getShopSettings(),
-      items: mergeById(Storage.getItems(), serverData.items),
+      items: mergedItems,
       customers: mergeById(Storage.getCustomers(), serverData.customers),
       sales: mergeById(Storage.getSales(), serverData.sales).sort((a, b) => {
         const numA = parseInt(String(a.invoiceNo || '').replace(/[^0-9]/g, ''), 10) || 0;

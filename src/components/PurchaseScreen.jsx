@@ -25,8 +25,10 @@ import { formatCurrency, formatDate } from '../services/pdfService';
 export default function PurchaseScreen({
   items,
   purchases,
+  suppliers: externalSuppliers,
   onSavePurchase,
   onDeletePurchase,
+  onSaveSuppliers,
 }) {
   const [activeTab, setActiveTab] = useState('create'); // 'create' | 'history'
   
@@ -48,7 +50,8 @@ export default function PurchaseScreen({
   const [toast, setToast] = useState('');
 
   // Suppliers master state
-  const [savedSuppliers, setSavedSuppliers] = useState(() => Storage.getSuppliers());
+  const [internalSuppliers, setInternalSuppliers] = useState(() => Storage.getSuppliers());
+  const savedSuppliers = externalSuppliers || internalSuppliers;
   const [isAddingNewSupplier, setIsAddingNewSupplier] = useState(false);
 
   const autoBillNo = useMemo(() => {
@@ -168,15 +171,23 @@ export default function PurchaseScreen({
         openingBalance: cleanSupOpeningBal,
       };
       const updatedSups = [newSup, ...savedSuppliers];
-      setSavedSuppliers(updatedSups);
-      Storage.saveSuppliers(updatedSups);
+      if (onSaveSuppliers) {
+        onSaveSuppliers(updatedSups);
+      } else {
+        setInternalSuppliers(updatedSups);
+        Storage.saveSuppliers(updatedSups);
+      }
     } else if (cleanSupGstin && !existing.gstin) {
       // update existing supplier gstin if provided
       const updatedSups = savedSuppliers.map((s) =>
         s.id === existing.id ? { ...s, gstin: cleanSupGstin, openingBalance: cleanSupOpeningBal || s.openingBalance || 0 } : s
       );
-      setSavedSuppliers(updatedSups);
-      Storage.saveSuppliers(updatedSups);
+      if (onSaveSuppliers) {
+        onSaveSuppliers(updatedSups);
+      } else {
+        setInternalSuppliers(updatedSups);
+        Storage.saveSuppliers(updatedSups);
+      }
     }
 
     const newPurchase = {

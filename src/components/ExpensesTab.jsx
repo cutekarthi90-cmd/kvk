@@ -30,8 +30,14 @@ const EXPENSE_CATEGORIES = [
   { id: 'others', label: 'இதர செலவு (Maintenance / Other)', icon: Wrench, color: 'text-purple-600 bg-purple-50 border-purple-200' },
 ];
 
-export default function ExpensesTab({ shop = {} }) {
-  const [expenses, setExpenses] = useState(() => Storage.getExpenses());
+export default function ExpensesTab({
+  shop = {},
+  expenses: externalExpenses,
+  onSaveExpense,
+  onDeleteExpense,
+}) {
+  const [internalExpenses, setInternalExpenses] = useState(() => Storage.getExpenses());
+  const expenses = externalExpenses || internalExpenses;
   const [isAdding, setIsAdding] = useState(false);
   const [filterFY, setFilterFY] = useState(() => getFinancialYear());
   const [search, setSearch] = useState('');
@@ -128,9 +134,13 @@ export default function ExpensesTab({ shop = {} }) {
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newExp, ...expenses];
-    setExpenses(updated);
-    Storage.saveExpenses(updated);
+    if (onSaveExpense) {
+      onSaveExpense(newExp);
+    } else {
+      const updated = [newExp, ...expenses];
+      setInternalExpenses(updated);
+      Storage.saveExpenses(updated);
+    }
 
     showToast('Expense recorded successfully!');
     setAmount('');
@@ -141,10 +151,14 @@ export default function ExpensesTab({ shop = {} }) {
 
   const handleDeleteExpense = (id) => {
     if (confirm('Are you sure you want to delete this expense record?')) {
-      const updated = expenses.filter((e) => e.id !== id);
-      setExpenses(updated);
-      Storage.saveExpenses(updated);
-      Storage.recordDeletedId(id);
+      if (onDeleteExpense) {
+        onDeleteExpense(id);
+      } else {
+        const updated = expenses.filter((e) => e.id !== id);
+        setInternalExpenses(updated);
+        Storage.saveExpenses(updated);
+        Storage.recordDeletedId(id);
+      }
       showToast('Expense deleted');
     }
   };

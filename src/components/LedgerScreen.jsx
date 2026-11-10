@@ -36,9 +36,21 @@ export default function LedgerScreen({
   sales = [],
   receipts = [],
   purchases = [],
+  suppliers: externalSuppliers,
+  supplierPayments = [],
+  expenses = [],
+  interestLoans = [],
+  interestPayments = [],
   onOpenAddCustomer,
   onEditCustomer,
   onDeleteCustomer,
+  onSaveSuppliers,
+  onSaveExpense,
+  onDeleteExpense,
+  onSaveInterestLoan,
+  onDeleteInterestLoan,
+  onSaveInterestPayment,
+  onDeleteInterestPayment,
   onQuickSale,
   onQuickReceipt,
 }) {
@@ -52,7 +64,8 @@ export default function LedgerScreen({
   const [toast, setToast] = useState('');
 
   // Suppliers Master & Edit State
-  const [savedSuppliers, setSavedSuppliers] = useState(() => Storage.getSuppliers());
+  const [internalSuppliers, setInternalSuppliers] = useState(() => Storage.getSuppliers());
+  const savedSuppliers = externalSuppliers || internalSuppliers;
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState(null);
   const [supplierFormName, setSupplierFormName] = useState('');
@@ -302,8 +315,12 @@ export default function LedgerScreen({
       updated = [newSup, ...savedSuppliers];
     }
 
-    setSavedSuppliers(updated);
-    Storage.saveSuppliers(updated);
+    if (onSaveSuppliers) {
+      onSaveSuppliers(updated);
+    } else {
+      setInternalSuppliers(updated);
+      Storage.saveSuppliers(updated);
+    }
     setIsSupplierModalOpen(false);
     showToast(editingSupplier ? 'Supplier updated successfully!' : 'Supplier added successfully!');
   };
@@ -864,12 +881,25 @@ export default function LedgerScreen({
 
           {/* TAB 3: EXPENSES (Diesel, Kooli, Mandi Expenses) */}
           {activeLedgerTab === 'expenses' && (
-            <ExpensesTab shop={shop} />
+            <ExpensesTab
+              shop={shop}
+              expenses={expenses}
+              onSaveExpense={onSaveExpense}
+              onDeleteExpense={onDeleteExpense}
+            />
           )}
 
           {/* TAB 4: INTEREST LOANS (வட்டி கணக்கு) */}
           {activeLedgerTab === 'interest' && (
-            <InterestTab shop={shop} />
+            <InterestTab
+              shop={shop}
+              loans={interestLoans}
+              payments={interestPayments}
+              onSaveLoan={onSaveInterestLoan}
+              onDeleteLoan={onDeleteInterestLoan}
+              onSavePayment={onSaveInterestPayment}
+              onDeletePayment={onDeleteInterestPayment}
+            />
           )}
 
           {/* TAB 1: CUSTOMERS DIRECTORY */}

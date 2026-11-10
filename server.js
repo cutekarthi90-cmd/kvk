@@ -1294,7 +1294,16 @@ const readDB = () => {
     const content = fs.readFileSync(DB_FILE, 'utf-8');
     const parsed = JSON.parse(content);
     if (Array.isArray(parsed.items)) {
-      parsed.items = parsed.items.map((item) => ({ ...item, unit: 'Bag' }));
+      // Ensure all 32 items are always present
+      const itemMap = new Map();
+      DEFAULT_DB.items.forEach((item) => itemMap.set(item.id, { ...item, unit: 'Bag' }));
+      parsed.items.forEach((item) => {
+        const existing = itemMap.get(item.id);
+        itemMap.set(item.id, existing ? { ...existing, ...item, unit: 'Bag' } : { ...item, unit: 'Bag' });
+      });
+      parsed.items = Array.from(itemMap.values());
+    } else {
+      parsed.items = DEFAULT_DB.items;
     }
     return parsed;
   } catch (err) {
@@ -1331,7 +1340,7 @@ const mergeCollectionsById = (serverList = [], clientList = []) => {
 };
 
 // Active Keep-Alive to prevent Render proxy from dropping idle mobile WebSockets
-const HEARTBEAT_INTERVAL_MS = 20000;
+const HEARTBEAT_INTERVAL_MS = 12000;
 setInterval(() => {
   wss.clients.forEach((client) => {
     if (client.isAlive === false) {
@@ -1427,6 +1436,10 @@ wss.on('connection', (ws) => {
           db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
         } else if (action === 'SAVE_INTEREST_PAYMENT') {
           db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
+        } else if (action === 'DELETE_INTEREST_PAYMENT') {
+          db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+        } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
+          db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
         } else if (action === 'CLIENT_SYNC_STATE') {
           try {
             const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -1519,6 +1532,10 @@ app.post('/api/action', (req, res) => {
     db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
   } else if (action === 'SAVE_INTEREST_PAYMENT') {
     db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
+  } else if (action === 'DELETE_INTEREST_PAYMENT') {
+    db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+  } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
+    db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
   } else if (action === 'CLIENT_SYNC_STATE') {
     try {
       const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;

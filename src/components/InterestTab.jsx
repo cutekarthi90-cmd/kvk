@@ -20,9 +20,19 @@ import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp } from '../services/shareService';
 
-export default function InterestTab({ shop = {} }) {
-  const [loans, setLoans] = useState(() => Storage.getInterestLoans());
-  const [payments, setPayments] = useState(() => Storage.getInterestPayments());
+export default function InterestTab({
+  shop = {},
+  loans: externalLoans,
+  payments: externalPayments,
+  onSaveLoan,
+  onDeleteLoan,
+  onSavePayment,
+  onDeletePayment,
+}) {
+  const [internalLoans, setInternalLoans] = useState(() => Storage.getInterestLoans());
+  const [internalPayments, setInternalPayments] = useState(() => Storage.getInterestPayments());
+  const loans = externalLoans || internalLoans;
+  const payments = externalPayments || internalPayments;
 
   const [isAddingLoan, setIsAddingLoan] = useState(false);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
@@ -110,9 +120,13 @@ export default function InterestTab({ shop = {} }) {
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newLoan, ...loans];
-    setLoans(updated);
-    Storage.saveInterestLoans(updated);
+    if (onSaveLoan) {
+      onSaveLoan(newLoan);
+    } else {
+      const updated = [newLoan, ...loans];
+      setInternalLoans(updated);
+      Storage.saveInterestLoans(updated);
+    }
 
     showToast('New loan / interest entry saved!');
     setLenderName('');
@@ -153,9 +167,13 @@ export default function InterestTab({ shop = {} }) {
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newPayment, ...payments];
-    setPayments(updated);
-    Storage.saveInterestPayments(updated);
+    if (onSavePayment) {
+      onSavePayment(newPayment);
+    } else {
+      const updated = [newPayment, ...payments];
+      setInternalPayments(updated);
+      Storage.saveInterestPayments(updated);
+    }
 
     showToast('Interest payment saved successfully!');
     setInterestPaidAmount('');
@@ -184,20 +202,28 @@ export default function InterestTab({ shop = {} }) {
 
   const handleDeleteLoan = (loanId) => {
     if (confirm('Are you sure you want to delete this loan record?')) {
-      const updated = loans.filter((l) => l.id !== loanId);
-      setLoans(updated);
-      Storage.saveInterestLoans(updated);
-      Storage.recordDeletedId(loanId);
+      if (onDeleteLoan) {
+        onDeleteLoan(loanId);
+      } else {
+        const updated = loans.filter((l) => l.id !== loanId);
+        setInternalLoans(updated);
+        Storage.saveInterestLoans(updated);
+        Storage.recordDeletedId(loanId);
+      }
       showToast('Loan record deleted');
     }
   };
 
   const handleDeletePayment = (paymentId) => {
     if (confirm('Are you sure you want to delete this payment record?')) {
-      const updated = payments.filter((p) => p.id !== paymentId);
-      setPayments(updated);
-      Storage.saveInterestPayments(updated);
-      Storage.recordDeletedId(paymentId);
+      if (onDeletePayment) {
+        onDeletePayment(paymentId);
+      } else {
+        const updated = payments.filter((p) => p.id !== paymentId);
+        setInternalPayments(updated);
+        Storage.saveInterestPayments(updated);
+        Storage.recordDeletedId(paymentId);
+      }
       showToast('Payment record deleted');
     }
   };
