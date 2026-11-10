@@ -1758,17 +1758,17 @@ export const Storage = {
       const map = new Map();
       // Put all local items first (sanitize any known English names to Tamil)
       (localList || []).forEach((item) => {
-        if (!deleted.includes(item.id)) {
-          const fixedName = CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name;
-          map.set(item.id, { ...item, name: fixedName });
+        if (item && item.id && !deleted.includes(item.id)) {
+          const fixedName = item.name ? (CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name) : undefined;
+          map.set(item.id, fixedName ? { ...item, name: fixedName } : item);
         }
       });
       // Server updates take precedence for matching items, preserving any local-only offline items
       (serverList || []).forEach((item) => {
-        if (!deleted.includes(item.id)) {
+        if (item && item.id && !deleted.includes(item.id)) {
           const existing = map.get(item.id);
-          const fixedName = CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name;
-          const cleanServerItem = { ...item, name: fixedName };
+          const fixedName = item.name ? (CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name) : undefined;
+          const cleanServerItem = fixedName ? { ...item, name: fixedName } : item;
           if (existing) {
             map.set(item.id, { ...existing, ...cleanServerItem });
           } else {

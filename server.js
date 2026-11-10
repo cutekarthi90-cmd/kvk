@@ -1362,6 +1362,12 @@ const broadcast = (message, senderWs = null) => {
   });
 };
 
+const recordDeletedId = (db, id) => {
+  if (!id) return;
+  if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
+  if (!db.deletedIds.includes(id)) db.deletedIds.push(id);
+};
+
 wss.on('connection', (ws) => {
   ws.isAlive = true;
   ws.on('pong', () => {
@@ -1392,10 +1398,12 @@ wss.on('connection', (ws) => {
         if (action === 'SAVE_SALE') {
           db.sales = [payload, ...(db.sales || []).filter((s) => s.id !== payload.id)];
         } else if (action === 'DELETE_SALE') {
+          recordDeletedId(db, payload);
           db.sales = (db.sales || []).filter((s) => s.id !== payload);
         } else if (action === 'SAVE_RECEIPT') {
           db.receipts = [payload, ...(db.receipts || []).filter((r) => r.id !== payload.id)];
         } else if (action === 'DELETE_RECEIPT') {
+          recordDeletedId(db, payload);
           db.receipts = (db.receipts || []).filter((r) => r.id !== payload);
         } else if (action === 'SAVE_CUSTOMER') {
           const idx = (db.customers || []).findIndex((c) => c.id === payload.id);
@@ -1405,12 +1413,10 @@ wss.on('connection', (ws) => {
             db.customers = [payload, ...(db.customers || [])];
           }
         } else if (action === 'DELETE_CUSTOMER') {
-          if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
-          if (!db.deletedIds.includes(payload)) db.deletedIds.push(payload);
+          recordDeletedId(db, payload);
           db.customers = (db.customers || []).filter((c) => c.id !== payload);
         } else if (action === 'DELETE_ITEM') {
-          if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
-          if (!db.deletedIds.includes(payload)) db.deletedIds.push(payload);
+          recordDeletedId(db, payload);
           db.items = (db.items || []).filter((i) => i.id !== payload);
         } else if (action === 'SAVE_ITEMS') {
           if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
@@ -1421,6 +1427,7 @@ wss.on('connection', (ws) => {
         } else if (action === 'SAVE_PURCHASE') {
           db.purchases = [payload, ...(db.purchases || []).filter((p) => p.id !== payload.id)];
         } else if (action === 'DELETE_PURCHASE') {
+          recordDeletedId(db, payload);
           db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
         } else if (action === 'SAVE_SUPPLIERS') {
           db.suppliers = payload;
@@ -1428,24 +1435,29 @@ wss.on('connection', (ws) => {
           db.supplierPayments = payload;
         } else if (action === 'ADD_SUPPLIER_PAYMENT') {
           db.supplierPayments = [payload, ...(db.supplierPayments || []).filter((p) => p.id !== payload.id)];
+        } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
+          recordDeletedId(db, payload);
+          db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
         } else if (action === 'SAVE_SALES_RETURN') {
           db.salesReturns = [payload, ...(db.salesReturns || []).filter((r) => r.id !== payload.id)];
         } else if (action === 'DELETE_SALES_RETURN') {
+          recordDeletedId(db, payload);
           db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
         } else if (action === 'SAVE_EXPENSE') {
           db.expenses = [payload, ...(db.expenses || []).filter((e) => e.id !== payload.id)];
         } else if (action === 'DELETE_EXPENSE') {
+          recordDeletedId(db, payload);
           db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
         } else if (action === 'SAVE_INTEREST_LOAN') {
           db.interestLoans = [payload, ...(db.interestLoans || []).filter((l) => l.id !== payload.id)];
         } else if (action === 'DELETE_INTEREST_LOAN') {
+          recordDeletedId(db, payload);
           db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
         } else if (action === 'SAVE_INTEREST_PAYMENT') {
           db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
         } else if (action === 'DELETE_INTEREST_PAYMENT') {
+          recordDeletedId(db, payload);
           db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
-        } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
-          db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
         } else if (action === 'CLIENT_SYNC_STATE') {
           try {
             const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -1502,10 +1514,12 @@ app.post('/api/action', (req, res) => {
   if (action === 'SAVE_SALE') {
     db.sales = [payload, ...(db.sales || []).filter((s) => s.id !== payload.id)];
   } else if (action === 'DELETE_SALE') {
+    recordDeletedId(db, payload);
     db.sales = (db.sales || []).filter((s) => s.id !== payload);
   } else if (action === 'SAVE_RECEIPT') {
     db.receipts = [payload, ...(db.receipts || []).filter((r) => r.id !== payload.id)];
   } else if (action === 'DELETE_RECEIPT') {
+    recordDeletedId(db, payload);
     db.receipts = (db.receipts || []).filter((r) => r.id !== payload);
   } else if (action === 'SAVE_CUSTOMER') {
     const idx = (db.customers || []).findIndex((c) => c.id === payload.id);
@@ -1515,12 +1529,10 @@ app.post('/api/action', (req, res) => {
       db.customers = [payload, ...(db.customers || [])];
     }
   } else if (action === 'DELETE_CUSTOMER') {
-    if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
-    if (!db.deletedIds.includes(payload)) db.deletedIds.push(payload);
+    recordDeletedId(db, payload);
     db.customers = (db.customers || []).filter((c) => c.id !== payload);
   } else if (action === 'DELETE_ITEM') {
-    if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
-    if (!db.deletedIds.includes(payload)) db.deletedIds.push(payload);
+    recordDeletedId(db, payload);
     db.items = (db.items || []).filter((i) => i.id !== payload);
   } else if (action === 'SAVE_ITEMS') {
     if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
@@ -1531,6 +1543,7 @@ app.post('/api/action', (req, res) => {
   } else if (action === 'SAVE_PURCHASE') {
     db.purchases = [payload, ...(db.purchases || []).filter((p) => p.id !== payload.id)];
   } else if (action === 'DELETE_PURCHASE') {
+    recordDeletedId(db, payload);
     db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
   } else if (action === 'SAVE_SUPPLIERS') {
     db.suppliers = payload;
@@ -1538,23 +1551,31 @@ app.post('/api/action', (req, res) => {
     db.supplierPayments = payload;
   } else if (action === 'ADD_SUPPLIER_PAYMENT') {
     db.supplierPayments = [payload, ...(db.supplierPayments || []).filter((p) => p.id !== payload.id)];
+  } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
+    recordDeletedId(db, payload);
+    db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
   } else if (action === 'SAVE_SALES_RETURN') {
     db.salesReturns = [payload, ...(db.salesReturns || []).filter((r) => r.id !== payload.id)];
   } else if (action === 'DELETE_SALES_RETURN') {
+    recordDeletedId(db, payload);
     db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
   } else if (action === 'SAVE_EXPENSE') {
     db.expenses = [payload, ...(db.expenses || []).filter((e) => e.id !== payload.id)];
   } else if (action === 'DELETE_EXPENSE') {
+    recordDeletedId(db, payload);
     db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
   } else if (action === 'SAVE_INTEREST_LOAN') {
     db.interestLoans = [payload, ...(db.interestLoans || []).filter((l) => l.id !== payload.id)];
   } else if (action === 'DELETE_INTEREST_LOAN') {
+    recordDeletedId(db, payload);
     db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
   } else if (action === 'SAVE_INTEREST_PAYMENT') {
     db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
   } else if (action === 'DELETE_INTEREST_PAYMENT') {
+    recordDeletedId(db, payload);
     db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
   } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
+    recordDeletedId(db, payload);
     db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
   } else if (action === 'CLIENT_SYNC_STATE') {
     try {

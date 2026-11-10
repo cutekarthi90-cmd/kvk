@@ -98,7 +98,7 @@ export default function LedgerScreen({
         hasQSales,
       };
     });
-  }, [customers, sales, receipts]);
+  }, [customers, sales, receipts, salesReturns]);
 
   const displayedCustomers = useMemo(() => {
     let list = customerListWithBalances;

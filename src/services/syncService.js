@@ -37,6 +37,11 @@ let pingTimer = null;
 let isPolling = false;
 let lastKnownHash = '';
 
+const computeFullStateHash = (d) => {
+  if (!d) return '';
+  return `${d.lastUpdated || ''}_s${d.sales?.length || 0}_r${d.receipts?.length || 0}_p${d.purchases?.length || 0}_c${d.customers?.length || 0}_i${d.items?.length || 0}_e${d.expenses?.length || 0}_il${d.interestLoans?.length || 0}_ip${d.interestPayments?.length || 0}_sp${d.supplierPayments?.length || 0}_sr${d.salesReturns?.length || 0}_sup${d.suppliers?.length || 0}_del${(d.deletedIds || []).length}`;
+};
+
 export const SyncService = {
   init: ({ onStatusChange, onDataUpdate }) => {
     statusCallback = onStatusChange;
@@ -104,7 +109,7 @@ export const SyncService = {
       });
       if (res.ok) {
         const data = await res.json();
-        const hash = `${data.lastUpdated || ''}_${data.sales?.length || 0}_${data.receipts?.length || 0}_${data.purchases?.length || 0}_${data.customers?.length || 0}_${data.items?.length || 0}_${data.expenses?.length || 0}`;
+        const hash = computeFullStateHash(data);
         if (hash !== lastKnownHash) {
           lastKnownHash = hash;
           if (data && updateCallback) {
@@ -179,7 +184,8 @@ export const SyncService = {
           if (msg.type === 'INIT_STATE' || msg.type === 'LIVE_UPDATE') {
             const data = msg.fullData || msg.data;
             if (data) {
-              lastKnownHash = `${data.lastUpdated || ''}_${data.sales?.length || 0}_${data.receipts?.length || 0}_${data.purchases?.length || 0}_${data.customers?.length || 0}_${data.items?.length || 0}_${data.expenses?.length || 0}`;
+              const hash = computeFullStateHash(data);
+              lastKnownHash = hash;
               if (updateCallback) {
                 updateCallback(data, msg.buildVersion);
               }
@@ -207,9 +213,9 @@ export const SyncService = {
     }
   },
 
-  // Dispatch an action to all connected phones (dual channel: WebSocket + REST POST)
+  // Dispatch an action to all connected phones (dual channel: instant WebSocket + non-blocking REST POST)
   dispatch: async (action, payload) => {
-    // 1. WebSocket send (instant real-time push to other phones)
+    // 1. WebSocket send (instant real-time push to other phones in sub-millisecond)
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify({ type: 'SYNC_ACTION', action, payload }));
@@ -218,10 +224,10 @@ export const SyncService = {
       }
     }
 
-    // 2. ALWAYS also send HTTP POST /api/action for guaranteed persistence and server broadcast
+    // 2. ALWAYS also send HTTP POST /api/action asynchronously without blocking UI
     try {
       const serverUrl = getServerUrl();
-      const res = await fetch(`${serverUrl}/api/action`, {
+      fetch(`${serverUrl}/api/action`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -229,15 +235,18 @@ export const SyncService = {
           'ngrok-skip-browser-warning': 'true',
         },
         body: JSON.stringify({ action, payload }),
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.db) {
-          lastKnownHash = `${json.db.lastUpdated || ''}_${json.db.sales?.length || 0}_${json.db.receipts?.length || 0}_${json.db.purchases?.length || 0}_${json.db.customers?.length || 0}_${json.db.items?.length || 0}_${json.db.expenses?.length || 0}`;
+      }).then(async (res) => {
+        if (res.ok) {
+          const json = await res.json();
+          if (json.db) {
+            lastKnownHash = computeFullStateHash(json.db);
+          }
         }
-      }
+      }).catch((e) => {
+        console.warn('HTTP fallback action POST failed:', e);
+      });
     } catch (e) {
-      console.warn('HTTP fallback action POST failed:', e);
+      console.warn('HTTP dispatch error:', e);
     }
 
     // 3. Mirror to Firebase if configured
