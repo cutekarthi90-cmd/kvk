@@ -117,6 +117,18 @@ export default function App() {
         if (Array.isArray(merged.supplierPayments)) {
           Storage.saveSupplierPayments(merged.supplierPayments);
         }
+        if (Array.isArray(merged.salesReturns)) {
+          Storage.saveSalesReturns(merged.salesReturns);
+        }
+        if (Array.isArray(merged.expenses)) {
+          Storage.saveExpenses(merged.expenses);
+        }
+        if (Array.isArray(merged.interestLoans)) {
+          Storage.saveInterestLoans(merged.interestLoans);
+        }
+        if (Array.isArray(merged.interestPayments)) {
+          Storage.saveInterestPayments(merged.interestPayments);
+        }
       },
     });
 

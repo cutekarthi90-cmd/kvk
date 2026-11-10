@@ -1315,6 +1315,36 @@ const writeDB = (data) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Safe helper to merge collections by ID so client never wipes server data
+const mergeCollectionsById = (serverList = [], clientList = []) => {
+  const map = new Map();
+  (serverList || []).forEach((item) => {
+    if (item && item.id) map.set(item.id, item);
+  });
+  (clientList || []).forEach((item) => {
+    if (item && item.id) {
+      const existing = map.get(item.id);
+      map.set(item.id, existing ? { ...existing, ...item } : item);
+    }
+  });
+  return Array.from(map.values());
+};
+
+// Active Keep-Alive to prevent Render proxy from dropping idle mobile WebSockets
+const HEARTBEAT_INTERVAL_MS = 20000;
+setInterval(() => {
+  wss.clients.forEach((client) => {
+    if (client.isAlive === false) {
+      console.log('Terminating dead client WebSocket');
+      return client.terminate();
+    }
+    client.isAlive = false;
+    try {
+      client.ping();
+    } catch {}
+  });
+}, HEARTBEAT_INTERVAL_MS);
+
 // Broadcast helper: sends message to all connected phones
 const broadcast = (message, senderWs = null) => {
   const payload = JSON.stringify(message);
@@ -1326,22 +1356,38 @@ const broadcast = (message, senderWs = null) => {
 };
 
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => {
+    ws.isAlive = true;
+  });
+
   const currentData = readDB();
-  ws.send(JSON.stringify({ type: 'INIT_STATE', data: currentData, buildVersion: BUILD_VERSION }));
+  ws.send(JSON.stringify({ 
+    type: 'INIT_STATE', 
+    data: currentData, 
+    buildVersion: BUILD_VERSION,
+    lastUpdated: currentData.lastUpdated || new Date().toISOString()
+  }));
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw);
+      if (msg.type === 'PING') {
+        ws.isAlive = true;
+        ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+        return;
+      }
+
       if (msg.type === 'SYNC_ACTION') {
         const db = readDB();
         const { action, payload } = msg;
 
         if (action === 'SAVE_SALE') {
-          db.sales = [payload, ...(db.sales || [])];
+          db.sales = [payload, ...(db.sales || []).filter((s) => s.id !== payload.id)];
         } else if (action === 'DELETE_SALE') {
           db.sales = (db.sales || []).filter((s) => s.id !== payload);
         } else if (action === 'SAVE_RECEIPT') {
-          db.receipts = [payload, ...(db.receipts || [])];
+          db.receipts = [payload, ...(db.receipts || []).filter((r) => r.id !== payload.id)];
         } else if (action === 'DELETE_RECEIPT') {
           db.receipts = (db.receipts || []).filter((r) => r.id !== payload);
         } else if (action === 'SAVE_CUSTOMER') {
@@ -1358,7 +1404,7 @@ wss.on('connection', (ws) => {
         } else if (action === 'SAVE_SHOP') {
           db.shop = payload;
         } else if (action === 'SAVE_PURCHASE') {
-          db.purchases = [payload, ...(db.purchases || [])];
+          db.purchases = [payload, ...(db.purchases || []).filter((p) => p.id !== payload.id)];
         } else if (action === 'DELETE_PURCHASE') {
           db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
         } else if (action === 'SAVE_SUPPLIERS') {
@@ -1366,35 +1412,42 @@ wss.on('connection', (ws) => {
         } else if (action === 'SAVE_SUPPLIER_PAYMENTS') {
           db.supplierPayments = payload;
         } else if (action === 'ADD_SUPPLIER_PAYMENT') {
-          db.supplierPayments = [payload, ...(db.supplierPayments || [])];
+          db.supplierPayments = [payload, ...(db.supplierPayments || []).filter((p) => p.id !== payload.id)];
         } else if (action === 'SAVE_SALES_RETURN') {
-          db.salesReturns = [payload, ...(db.salesReturns || [])];
+          db.salesReturns = [payload, ...(db.salesReturns || []).filter((r) => r.id !== payload.id)];
         } else if (action === 'DELETE_SALES_RETURN') {
           db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
         } else if (action === 'SAVE_EXPENSE') {
-          db.expenses = [payload, ...(db.expenses || [])];
+          db.expenses = [payload, ...(db.expenses || []).filter((e) => e.id !== payload.id)];
         } else if (action === 'DELETE_EXPENSE') {
           db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
         } else if (action === 'SAVE_INTEREST_LOAN') {
-          db.interestLoans = [payload, ...(db.interestLoans || [])];
+          db.interestLoans = [payload, ...(db.interestLoans || []).filter((l) => l.id !== payload.id)];
         } else if (action === 'DELETE_INTEREST_LOAN') {
           db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
         } else if (action === 'SAVE_INTEREST_PAYMENT') {
-          db.interestPayments = [payload, ...(db.interestPayments || [])];
+          db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
         } else if (action === 'CLIENT_SYNC_STATE') {
           try {
             const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
-            if (Array.isArray(clientData.sales) && clientData.sales.length >= (db.sales || []).length) db.sales = clientData.sales;
-            if (Array.isArray(clientData.purchases) && clientData.purchases.length >= (db.purchases || []).length) db.purchases = clientData.purchases;
-            if (Array.isArray(clientData.receipts) && clientData.receipts.length >= (db.receipts || []).length) db.receipts = clientData.receipts;
-            if (Array.isArray(clientData.customers)) db.customers = clientData.customers;
-            if (Array.isArray(clientData.items)) db.items = clientData.items;
-            if (Array.isArray(clientData.suppliers)) db.suppliers = clientData.suppliers;
-            if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = clientData.supplierPayments;
-            if (Array.isArray(clientData.salesReturns)) db.salesReturns = clientData.salesReturns;
-            if (Array.isArray(clientData.expenses)) db.expenses = clientData.expenses;
-            if (Array.isArray(clientData.interestLoans)) db.interestLoans = clientData.interestLoans;
-            if (Array.isArray(clientData.interestPayments)) db.interestPayments = clientData.interestPayments;
+            if (clientData) {
+              if (Array.isArray(clientData.customers)) {
+                db.customers = mergeCollectionsById(db.customers, clientData.customers.map((c) => ({
+                  ...c,
+                  name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
+                })));
+              }
+              if (Array.isArray(clientData.items)) db.items = mergeCollectionsById(db.items, clientData.items);
+              if (Array.isArray(clientData.sales)) db.sales = mergeCollectionsById(db.sales, clientData.sales);
+              if (Array.isArray(clientData.purchases)) db.purchases = mergeCollectionsById(db.purchases, clientData.purchases);
+              if (Array.isArray(clientData.receipts)) db.receipts = mergeCollectionsById(db.receipts, clientData.receipts);
+              if (Array.isArray(clientData.suppliers)) db.suppliers = mergeCollectionsById(db.suppliers, clientData.suppliers);
+              if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = mergeCollectionsById(db.supplierPayments, clientData.supplierPayments);
+              if (Array.isArray(clientData.salesReturns)) db.salesReturns = mergeCollectionsById(db.salesReturns, clientData.salesReturns);
+              if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses);
+              if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans);
+              if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments);
+            }
           } catch (e) {
             console.error('Error syncing client state:', e);
           }
@@ -1422,11 +1475,11 @@ app.post('/api/action', (req, res) => {
   const db = readDB();
 
   if (action === 'SAVE_SALE') {
-    db.sales = [payload, ...(db.sales || [])];
+    db.sales = [payload, ...(db.sales || []).filter((s) => s.id !== payload.id)];
   } else if (action === 'DELETE_SALE') {
     db.sales = (db.sales || []).filter((s) => s.id !== payload);
   } else if (action === 'SAVE_RECEIPT') {
-    db.receipts = [payload, ...(db.receipts || [])];
+    db.receipts = [payload, ...(db.receipts || []).filter((r) => r.id !== payload.id)];
   } else if (action === 'DELETE_RECEIPT') {
     db.receipts = (db.receipts || []).filter((r) => r.id !== payload);
   } else if (action === 'SAVE_CUSTOMER') {
@@ -1443,7 +1496,7 @@ app.post('/api/action', (req, res) => {
   } else if (action === 'SAVE_SHOP') {
     db.shop = payload;
   } else if (action === 'SAVE_PURCHASE') {
-    db.purchases = [payload, ...(db.purchases || [])];
+    db.purchases = [payload, ...(db.purchases || []).filter((p) => p.id !== payload.id)];
   } else if (action === 'DELETE_PURCHASE') {
     db.purchases = (db.purchases || []).filter((p) => p.id !== payload);
   } else if (action === 'SAVE_SUPPLIERS') {
@@ -1451,40 +1504,42 @@ app.post('/api/action', (req, res) => {
   } else if (action === 'SAVE_SUPPLIER_PAYMENTS') {
     db.supplierPayments = payload;
   } else if (action === 'ADD_SUPPLIER_PAYMENT') {
-    db.supplierPayments = [payload, ...(db.supplierPayments || [])];
+    db.supplierPayments = [payload, ...(db.supplierPayments || []).filter((p) => p.id !== payload.id)];
   } else if (action === 'SAVE_SALES_RETURN') {
-    db.salesReturns = [payload, ...(db.salesReturns || [])];
+    db.salesReturns = [payload, ...(db.salesReturns || []).filter((r) => r.id !== payload.id)];
   } else if (action === 'DELETE_SALES_RETURN') {
     db.salesReturns = (db.salesReturns || []).filter((r) => r.id !== payload);
   } else if (action === 'SAVE_EXPENSE') {
-    db.expenses = [payload, ...(db.expenses || [])];
+    db.expenses = [payload, ...(db.expenses || []).filter((e) => e.id !== payload.id)];
   } else if (action === 'DELETE_EXPENSE') {
     db.expenses = (db.expenses || []).filter((e) => e.id !== payload);
   } else if (action === 'SAVE_INTEREST_LOAN') {
-    db.interestLoans = [payload, ...(db.interestLoans || [])];
+    db.interestLoans = [payload, ...(db.interestLoans || []).filter((l) => l.id !== payload.id)];
   } else if (action === 'DELETE_INTEREST_LOAN') {
     db.interestLoans = (db.interestLoans || []).filter((l) => l.id !== payload);
   } else if (action === 'SAVE_INTEREST_PAYMENT') {
-    db.interestPayments = [payload, ...(db.interestPayments || [])];
+    db.interestPayments = [payload, ...(db.interestPayments || []).filter((p) => p.id !== payload.id)];
   } else if (action === 'CLIENT_SYNC_STATE') {
     try {
       const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
-      if (Array.isArray(clientData.sales) && clientData.sales.length >= (db.sales || []).length) db.sales = clientData.sales;
-      if (Array.isArray(clientData.purchases) && clientData.purchases.length >= (db.purchases || []).length) db.purchases = clientData.purchases;
-      if (Array.isArray(clientData.receipts) && clientData.receipts.length >= (db.receipts || []).length) db.receipts = clientData.receipts;
-      if (Array.isArray(clientData.customers)) {
-        db.customers = clientData.customers.map((c) => ({
-          ...c,
-          name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
-        }));
+      if (clientData) {
+        if (Array.isArray(clientData.customers)) {
+          db.customers = mergeCollectionsById(db.customers, clientData.customers.map((c) => ({
+            ...c,
+            name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
+          })));
+        }
+        if (Array.isArray(clientData.items)) db.items = mergeCollectionsById(db.items, clientData.items);
+        if (Array.isArray(clientData.sales)) db.sales = mergeCollectionsById(db.sales, clientData.sales);
+        if (Array.isArray(clientData.purchases)) db.purchases = mergeCollectionsById(db.purchases, clientData.purchases);
+        if (Array.isArray(clientData.receipts)) db.receipts = mergeCollectionsById(db.receipts, clientData.receipts);
+        if (Array.isArray(clientData.suppliers)) db.suppliers = mergeCollectionsById(db.suppliers, clientData.suppliers);
+        if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = mergeCollectionsById(db.supplierPayments, clientData.supplierPayments);
+        if (Array.isArray(clientData.salesReturns)) db.salesReturns = mergeCollectionsById(db.salesReturns, clientData.salesReturns);
+        if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses);
+        if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans);
+        if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments);
       }
-      if (Array.isArray(clientData.items)) db.items = clientData.items;
-      if (Array.isArray(clientData.suppliers)) db.suppliers = clientData.suppliers;
-      if (Array.isArray(clientData.supplierPayments)) db.supplierPayments = clientData.supplierPayments;
-      if (Array.isArray(clientData.salesReturns)) db.salesReturns = clientData.salesReturns;
-      if (Array.isArray(clientData.expenses)) db.expenses = clientData.expenses;
-      if (Array.isArray(clientData.interestLoans)) db.interestLoans = clientData.interestLoans;
-      if (Array.isArray(clientData.interestPayments)) db.interestPayments = clientData.interestPayments;
     } catch (e) {
       console.error('Error syncing client state:', e);
     }

@@ -8,8 +8,8 @@ export const getServerUrl = () => {
   if (saved) return saved;
 
   if (typeof window !== 'undefined' && window.location.origin && window.location.origin !== 'null') {
-    // If accessed via HTTPS (like ngrok, cloud, domain)
-    if (window.location.protocol === 'https:' || window.location.hostname.includes('ngrok')) {
+    // If accessed via HTTPS (like Render cloud, ngrok, domain)
+    if (window.location.protocol === 'https:' || window.location.hostname.includes('ngrok') || window.location.hostname.includes('render.com')) {
       return window.location.origin;
     }
     // If accessed on local port 5000
@@ -30,12 +30,99 @@ let ws = null;
 let statusCallback = null;
 let updateCallback = null;
 let reconnectTimer = null;
+let pollTimer = null;
+let pingTimer = null;
+let isPolling = false;
+let lastKnownHash = '';
 
 export const SyncService = {
   init: ({ onStatusChange, onDataUpdate }) => {
     statusCallback = onStatusChange;
     updateCallback = onDataUpdate;
     SyncService.connect();
+    SyncService.startPolling();
+    SyncService.startPingHeartbeat();
+    SyncService.bindVisibilityEvents();
+  },
+
+  bindVisibilityEvents: () => {
+    if (typeof window === 'undefined') return;
+    if (window.__syncEventsBound) return;
+    window.__syncEventsBound = true;
+
+    // Instant sync when user opens phone, unlocks screen, or switches back to Mandi app tab
+    const handleWakeup = () => {
+      console.log('App wake-up event detected - instant poll & reconnect');
+      SyncService.pollNow();
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        SyncService.connect();
+      }
+    };
+
+    window.addEventListener('focus', handleWakeup);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') handleWakeup();
+    });
+    window.addEventListener('online', handleWakeup);
+  },
+
+  startPolling: () => {
+    if (pollTimer) clearInterval(pollTimer);
+    // Background polling fallback every 3.5 seconds
+    pollTimer = setInterval(() => {
+      SyncService.pollNow();
+    }, 3500);
+  },
+
+  startPingHeartbeat: () => {
+    if (pingTimer) clearInterval(pingTimer);
+    // Ping WebSocket every 15s so Render/cellular proxies never drop idle connection
+    pingTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        try {
+          ws.send(JSON.stringify({ type: 'PING', t: Date.now() }));
+        } catch {}
+      } else if (!ws || ws.readyState === WebSocket.CLOSED) {
+        SyncService.connect();
+      }
+    }, 15000);
+  },
+
+  pollNow: async () => {
+    if (isPolling) return;
+    isPolling = true;
+    try {
+      const serverUrl = getServerUrl();
+      const res = await fetch(`${serverUrl}/api/state`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const hash = `${data.lastUpdated || ''}_${data.sales?.length || 0}_${data.receipts?.length || 0}_${data.purchases?.length || 0}_${data.customers?.length || 0}_${data.items?.length || 0}_${data.expenses?.length || 0}`;
+        if (hash !== lastKnownHash) {
+          lastKnownHash = hash;
+          if (data && updateCallback) {
+            updateCallback(data);
+          }
+        }
+        if (statusCallback) statusCallback('connected');
+      } else {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          if (statusCallback) statusCallback('offline');
+        }
+      }
+    } catch {
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        if (statusCallback) statusCallback('offline');
+      }
+    } finally {
+      isPolling = false;
+    }
   },
 
   connect: () => {
@@ -48,8 +135,6 @@ export const SyncService = {
     } else {
       wsUrl = serverUrl.replace(/^http:\/\//i, 'ws://');
     }
-
-    if (statusCallback) statusCallback('connecting');
 
     try {
       if (ws) {
@@ -68,7 +153,10 @@ export const SyncService = {
         if (statusCallback) statusCallback('connected');
         if (reconnectTimer) clearTimeout(reconnectTimer);
 
-        // Notify server of active client data so waking server preserves local bills
+        // Fetch latest state immediately on connect
+        SyncService.pollNow();
+
+        // Share active local backup with server safely
         try {
           const backup = Storage.exportBackupData();
           ws.send(JSON.stringify({
@@ -84,10 +172,16 @@ export const SyncService = {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          if (msg.type === 'PONG') {
+            return;
+          }
           if (msg.type === 'INIT_STATE' || msg.type === 'LIVE_UPDATE') {
             const data = msg.fullData || msg.data;
-            if (data && updateCallback) {
-              updateCallback(data, msg.buildVersion);
+            if (data) {
+              lastKnownHash = `${data.lastUpdated || ''}_${data.sales?.length || 0}_${data.receipts?.length || 0}_${data.purchases?.length || 0}_${data.customers?.length || 0}_${data.items?.length || 0}_${data.expenses?.length || 0}`;
+              if (updateCallback) {
+                updateCallback(data, msg.buildVersion);
+              }
             }
           }
         } catch (e) {
@@ -96,77 +190,57 @@ export const SyncService = {
       };
 
       ws.onclose = () => {
-        // Fallback check: test if REST API is responsive
-        fetch(`${serverUrl}/api/state`, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            // Server is reachable via REST even if WS proxy had delay
-            if (statusCallback) statusCallback('connected');
-            if (data && updateCallback) updateCallback(data);
-          })
-          .catch(() => {
-            if (statusCallback) statusCallback('offline');
-          });
-
         if (reconnectTimer) clearTimeout(reconnectTimer);
         reconnectTimer = setTimeout(() => {
           SyncService.connect();
-        }, 3000);
+        }, 2500);
       };
 
       ws.onerror = () => {
-        // Test REST API connectivity
-        fetch(`${serverUrl}/api/state`, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (statusCallback) statusCallback('connected');
-            if (data && updateCallback) updateCallback(data);
-          })
-          .catch(() => {
-            if (statusCallback) statusCallback('offline');
-          });
+        // Polling will handle updates while WS reconnects
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        reconnectTimer = setTimeout(() => SyncService.connect(), 2500);
       };
-    } catch (e) {
-      if (statusCallback) statusCallback('offline');
+    } catch {
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = setTimeout(() => SyncService.connect(), 4000);
+      reconnectTimer = setTimeout(() => SyncService.connect(), 3000);
     }
   },
 
-  // Dispatch an action to all connected phones
+  // Dispatch an action to all connected phones (dual channel: WebSocket + REST POST)
   dispatch: async (action, payload) => {
-    let sentViaWs = false;
+    // 1. WebSocket send (instant real-time push to other phones)
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify({ type: 'SYNC_ACTION', action, payload }));
-        sentViaWs = true;
       } catch (e) {
         console.warn('WS send failed, using REST fallback', e);
       }
     }
 
-    // Always ensure REST API syncs if WS wasn't open
-    if (!sentViaWs) {
-      try {
-        const serverUrl = getServerUrl();
-        await fetch(`${serverUrl}/api/action`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true'
-          },
-          body: JSON.stringify({ action, payload }),
-        });
-      } catch (e) {
-        console.warn('HTTP fallback failed:', e);
+    // 2. ALWAYS also send HTTP POST /api/action for guaranteed persistence and server broadcast
+    try {
+      const serverUrl = getServerUrl();
+      const res = await fetch(`${serverUrl}/api/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({ action, payload }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.db) {
+          lastKnownHash = `${json.db.lastUpdated || ''}_${json.db.sales?.length || 0}_${json.db.receipts?.length || 0}_${json.db.purchases?.length || 0}_${json.db.customers?.length || 0}_${json.db.items?.length || 0}_${json.db.expenses?.length || 0}`;
+        }
       }
+    } catch (e) {
+      console.warn('HTTP fallback action POST failed:', e);
     }
 
-    // Also push to Firebase if configured
+    // 3. Mirror to Firebase if configured
     try {
       if (action === 'SAVE_SALE') await firebaseActions.saveSale(payload);
       else if (action === 'DELETE_SALE') await firebaseActions.deleteSale(payload);

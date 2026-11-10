@@ -244,7 +244,7 @@ export default function SaleScreen({
     const billTitle = isQ ? '*ESTIMATE / QUOTATION BILL*' : '*CASH / CREDIT BILL*';
     const billNoText = isQ
       ? `Q-Bill No: *${String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : `Q-${sale.invoiceNo}`}*`
-      : `Bill No: *No. ${sale.invoiceNo}*`;
+      : `Bill No: *${String(sale.invoiceNo).startsWith('KVK') ? sale.invoiceNo : `KVK ${sale.invoiceNo}`}*`;
 
     return (
       `🌾 *${shop.name || 'KVK THANIYA MANDI'}* 🌾\n` +
@@ -345,7 +345,11 @@ export default function SaleScreen({
 
     const finalInvoiceNo = isQSale
       ? (customInvoiceNo ? (customInvoiceNo.startsWith('Q-') ? customInvoiceNo : `Q-${customInvoiceNo}`) : `Q-${autoInvoiceNo}`)
-      : (customInvoiceNo || autoInvoiceNo);
+      : (customInvoiceNo
+          ? (String(customInvoiceNo).trim().toUpperCase().startsWith('KVK')
+              ? customInvoiceNo.trim()
+              : `KVK ${customInvoiceNo.trim()}`)
+          : `KVK ${autoInvoiceNo}`);
 
     const newSale = {
       id: `sale-${Date.now()}`,
@@ -382,7 +386,7 @@ export default function SaleScreen({
 
   const handlePreviewPdf = (saleToPreview) => {
     const sale = saleToPreview || {
-      invoiceNo: isQSale ? `Q-${autoInvoiceNo}` : autoInvoiceNo,
+      invoiceNo: isQSale ? `Q-${autoInvoiceNo}` : `KVK ${autoInvoiceNo}`,
       isQSale,
       billType: isQSale ? 'Q_SALE' : 'REGULAR',
       date,
@@ -733,7 +737,7 @@ export default function SaleScreen({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={`font-black text-base ${isQ ? 'text-purple-900' : 'text-slate-900'}`}>
-                        {String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : (isQ ? `Q-${sale.invoiceNo}` : `No. ${sale.invoiceNo}`)}
+                        {String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : (isQ ? `Q-${sale.invoiceNo}` : (String(sale.invoiceNo).startsWith('KVK') ? sale.invoiceNo : `KVK ${sale.invoiceNo}`))}
                       </span>
                       {isQ && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-100 text-purple-800 border border-purple-200">
@@ -863,9 +867,9 @@ export default function SaleScreen({
                 {isQSale ? 'Q-Sale Ref No. (தானாக ஏறும்)' : 'Bill Number (தானாக ஏறும்)'}
               </span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-xs font-bold text-slate-400">{isQSale ? 'Q-' : 'No.'}</span>
+                <span className="text-xs font-bold text-slate-400">No.</span>
                 <span className={`font-black text-lg ${isQSale ? 'text-purple-700' : 'text-blue-600'}`}>
-                  {autoInvoiceNo}
+                  {isQSale ? `Q-${autoInvoiceNo}` : `KVK ${autoInvoiceNo}`}
                 </span>
                 <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200">
                   FY {currentFY}

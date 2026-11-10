@@ -122,7 +122,7 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
   doc.setTextColor(headerTheme[0], headerTheme[1], headerTheme[2]);
   const displayBillNo = String(sale.invoiceNo || '1').startsWith('Q-')
     ? String(sale.invoiceNo)
-    : (isQ ? `Q-${sale.invoiceNo}` : `No. ${sale.invoiceNo || '1'}`);
+    : (isQ ? `Q-${sale.invoiceNo}` : (String(sale.invoiceNo || '1').startsWith('KVK') ? String(sale.invoiceNo) : `KVK ${sale.invoiceNo || '1'}`));
   doc.text(displayBillNo, rightX - 4, startMetaY + 7, { align: 'right' });
 
   doc.setTextColor(71, 85, 105);

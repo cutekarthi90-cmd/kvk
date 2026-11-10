@@ -1304,12 +1304,17 @@ export const Storage = {
       }, 0);
       return maxNo + 1;
     } else {
+      // Regular Billing Series: starts at KVK 1 per user request
       const regularSales = (sales || []).filter(
         (s) => getFinancialYear(s.date) === fy && !s.isQSale && s.billType !== 'Q_SALE'
       );
-      const maxNo = regularSales.reduce((max, s) => {
-        const clean = String(s.invoiceNo || '').replace(/[^0-9]/g, '');
-        const num = parseInt(clean, 10) || 0;
+      const kvkSales = regularSales.filter((s) => String(s.invoiceNo || '').toUpperCase().includes('KVK'));
+      if (kvkSales.length === 0) {
+        return 1; // First bill starts as KVK 1!
+      }
+      const maxNo = kvkSales.reduce((max, s) => {
+        const match = String(s.invoiceNo || '').match(/\d+/);
+        const num = match ? parseInt(match[0], 10) : 0;
         return Math.max(max, num);
       }, 0);
       return maxNo + 1;
@@ -1773,15 +1778,24 @@ export const Storage = {
       shop: serverData.shop || Storage.getShopSettings(),
       items: mergeById(Storage.getItems(), serverData.items),
       customers: mergeById(Storage.getCustomers(), serverData.customers),
-      sales: mergeById(Storage.getSales(), serverData.sales),
-      receipts: mergeById(Storage.getReceipts(), serverData.receipts),
-      purchases: mergeById(Storage.getPurchases(), serverData.purchases),
+      sales: mergeById(Storage.getSales(), serverData.sales).sort((a, b) => {
+        const numA = parseInt(String(a.invoiceNo || '').replace(/[^0-9]/g, ''), 10) || 0;
+        const numB = parseInt(String(b.invoiceNo || '').replace(/[^0-9]/g, ''), 10) || 0;
+        if (numB !== numA) return numB - numA;
+        return new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0);
+      }),
+      receipts: mergeById(Storage.getReceipts(), serverData.receipts).sort((a, b) => {
+        return new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0);
+      }),
+      purchases: mergeById(Storage.getPurchases(), serverData.purchases).sort((a, b) => {
+        return new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0);
+      }),
       suppliers: mergeById(Storage.getSuppliers(), serverData.suppliers),
       supplierPayments: mergeById(Storage.getSupplierPayments(), serverData.supplierPayments),
-      salesReturns: Storage.getSalesReturns(),
-      expenses: Storage.getExpenses(),
-      interestLoans: Storage.getInterestLoans(),
-      interestPayments: Storage.getInterestPayments(),
+      salesReturns: mergeById(Storage.getSalesReturns(), serverData.salesReturns),
+      expenses: mergeById(Storage.getExpenses(), serverData.expenses),
+      interestLoans: mergeById(Storage.getInterestLoans(), serverData.interestLoans),
+      interestPayments: mergeById(Storage.getInterestPayments(), serverData.interestPayments),
     };
   },
 
