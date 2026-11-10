@@ -249,6 +249,7 @@ export const SyncService = {
       else if (action === 'SAVE_CUSTOMER') await firebaseActions.saveCustomer(payload);
       else if (action === 'DELETE_CUSTOMER') await firebaseActions.deleteCustomer(payload);
       else if (action === 'SAVE_ITEMS') await firebaseActions.saveItems(payload);
+      else if (action === 'DELETE_ITEM') await firebaseActions.deleteItem(payload);
       else if (action === 'SAVE_SHOP') await firebaseActions.saveShop(payload);
     } catch {
       // Ignore

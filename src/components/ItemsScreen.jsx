@@ -17,7 +17,7 @@ import { formatCurrency } from '../services/pdfService';
 import { Storage } from '../services/storage';
 import StockReportScreen from './StockReportScreen';
 
-export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems }) {
+export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems, onDeleteItem }) {
   const [activeSubTab, setActiveSubTab] = useState('stock'); // 'stock' | 'report'
   const [editingItem, setEditingItem] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
@@ -151,9 +151,13 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
 
   const handleDelete = (id) => {
     if (confirm('Are you sure you want to delete this item?')) {
-      Storage.recordDeletedId(id);
-      const updated = items.filter((i) => i.id !== id);
-      onSaveItems(updated);
+      if (onDeleteItem) {
+        onDeleteItem(id);
+      } else {
+        Storage.recordDeletedId(id);
+        const updated = items.filter((i) => i.id !== id);
+        onSaveItems(updated);
+      }
     }
   };
 

@@ -196,6 +196,16 @@ export default function App() {
     SyncService.dispatch('SAVE_ITEMS', newItems);
   };
 
+  const handleDeleteItem = (itemId) => {
+    Storage.recordDeletedId(itemId);
+    setItems((prev) => {
+      const updated = prev.filter((i) => i.id !== itemId);
+      Storage.saveItems(updated);
+      return updated;
+    });
+    SyncService.dispatch('DELETE_ITEM', itemId);
+  };
+
   // Add or update customer
   const handleSaveCustomer = (customerData) => {
     setCustomers((prev) => {
@@ -497,6 +507,7 @@ export default function App() {
             sales={sales}
             purchases={purchases}
             onSaveItems={handleSaveItems}
+            onDeleteItem={handleDeleteItem}
           />
         )}
 

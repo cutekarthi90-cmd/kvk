@@ -159,6 +159,10 @@ export const firebaseActions = {
     if (!db) return;
     await deleteDoc(doc(db, 'kvk_customers', customerId));
   },
+  deleteItem: async (itemId) => {
+    if (!db) return;
+    await deleteDoc(doc(db, 'kvk_items', itemId));
+  },
   saveItems: async (items) => {
     if (!db) return;
     for (const item of items) {
