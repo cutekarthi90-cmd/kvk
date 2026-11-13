@@ -1458,6 +1458,8 @@ wss.on('connection', (ws) => {
         } else if (action === 'DELETE_INTEREST_PAYMENT') {
           recordDeletedId(db, payload);
           db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+        } else if (action === 'SAVE_GODOWNS') {
+          db.godowns = Array.isArray(payload) ? payload : [];
         } else if (action === 'CLIENT_SYNC_STATE') {
           try {
             const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -1484,6 +1486,7 @@ wss.on('connection', (ws) => {
               if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses, db.deletedIds);
               if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans, db.deletedIds);
               if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments, db.deletedIds);
+              if (Array.isArray(clientData.godowns)) db.godowns = clientData.godowns;
             }
           } catch (e) {
             console.error('Error syncing client state:', e);
@@ -1574,6 +1577,8 @@ app.post('/api/action', (req, res) => {
   } else if (action === 'DELETE_INTEREST_PAYMENT') {
     recordDeletedId(db, payload);
     db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+  } else if (action === 'SAVE_GODOWNS') {
+    db.godowns = Array.isArray(payload) ? payload : [];
   } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
     recordDeletedId(db, payload);
     db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
@@ -1603,6 +1608,7 @@ app.post('/api/action', (req, res) => {
         if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses, db.deletedIds);
         if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans, db.deletedIds);
         if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments, db.deletedIds);
+        if (Array.isArray(clientData.godowns)) db.godowns = clientData.godowns;
       }
     } catch (e) {
       console.error('Error syncing client state:', e);

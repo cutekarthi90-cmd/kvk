@@ -1395,6 +1395,20 @@ export const Storage = {
     Storage.touchModified();
   },
 
+  // --- GODOWNS (குடோன்கள்) ---
+  getGodowns: () => {
+    try {
+      const data = localStorage.getItem('quickbill_godowns');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  saveGodowns: (godowns) => {
+    localStorage.setItem('quickbill_godowns', JSON.stringify(godowns || []));
+    Storage.touchModified();
+  },
+
   // --- SALES RETURNS (விற்பனை திருப்பம்) ---
   getSalesReturns: () => {
     try {
@@ -1831,6 +1845,7 @@ export const Storage = {
       expenses: mergeById(Storage.getExpenses(), serverData.expenses),
       interestLoans: mergeById(Storage.getInterestLoans(), serverData.interestLoans),
       interestPayments: mergeById(Storage.getInterestPayments(), serverData.interestPayments),
+      godowns: Array.isArray(serverData.godowns) ? serverData.godowns : Storage.getGodowns(),
     };
   },
 

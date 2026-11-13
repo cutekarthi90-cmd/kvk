@@ -102,26 +102,39 @@ export default function LedgerScreen({
   }, [customers, sales, receipts, salesReturns]);
 
   const displayedCustomers = useMemo(() => {
-    let list = customerListWithBalances;
-    if (customerSubTab === 'regular') {
-      if (!search.trim()) {
-        const withReg = list.filter((c) => c.hasRegularSales);
-        list = withReg.length > 0 ? withReg : list;
-      }
-    } else if (customerSubTab === 'qsale') {
-      if (!search.trim()) {
-        list = list.filter((c) => c.hasQSales);
-      }
+    let list = customerListWithBalances || [];
+
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      return list.filter(
+        (c) =>
+          (c.name && c.name.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q)) ||
+          (c.gstin && c.gstin.toLowerCase().includes(q))
+      );
     }
 
-    if (!search.trim()) return list;
-    const q = search.toLowerCase();
-    return list.filter(
-      (c) =>
-        (c.name && c.name.toLowerCase().includes(q)) ||
-        (c.phone && c.phone.includes(q)) ||
-        (c.gstin && c.gstin.toLowerCase().includes(q))
-    );
+    if (customerSubTab === 'qsale') {
+      // Sort customers with Q-Sales or Q-Due first, then all remaining customers
+      return [...list].sort((a, b) => {
+        const aHas = a.hasQSales || (a.qBalance?.netDue > 0) ? 1 : 0;
+        const bHas = b.hasQSales || (b.qBalance?.netDue > 0) ? 1 : 0;
+        if (bHas !== aHas) return bHas - aHas;
+        return (b.qBalance?.netDue || 0) - (a.qBalance?.netDue || 0);
+      });
+    }
+
+    if (customerSubTab === 'regular') {
+      // Sort customers with Regular sales or Regular due first, then all remaining customers
+      return [...list].sort((a, b) => {
+        const aHas = a.hasRegularSales || (a.regBalance?.netDue > 0) ? 1 : 0;
+        const bHas = b.hasRegularSales || (b.regBalance?.netDue > 0) ? 1 : 0;
+        if (bHas !== aHas) return bHas - aHas;
+        return (b.regBalance?.netDue || 0) - (a.regBalance?.netDue || 0);
+      });
+    }
+
+    return [...list].sort((a, b) => (b.balance?.netDue || 0) - (a.balance?.netDue || 0));
   }, [customerListWithBalances, customerSubTab, search]);
 
   const currentTabOutstanding = useMemo(() => {
@@ -142,14 +155,14 @@ export default function LedgerScreen({
   // Customer Ledger transactions in DESCENDING order (newest first)
   const customerLedger = useMemo(() => {
     if (!selectedCustomer) return [];
-    const raw = Storage.getCustomerLedger(selectedCustomer.id, statementFilter);
+    const raw = Storage.getCustomerLedger(selectedCustomer.id, statementFilter, sales, receipts, salesReturns, selectedCustomer);
     return [...raw].reverse();
-  }, [selectedCustomer, sales, receipts, statementFilter]);
+  }, [selectedCustomer, sales, receipts, salesReturns, statementFilter]);
 
   const currentCustomerBalance = useMemo(() => {
     if (!selectedCustomer) return { totalSales: 0, totalPaid: 0, netDue: 0, openingBalance: 0 };
-    return Storage.getCustomerBalance(selectedCustomer.id, statementFilter);
-  }, [selectedCustomer, sales, receipts, statementFilter]);
+    return Storage.getCustomerBalance(selectedCustomer.id, statementFilter, sales, receipts, salesReturns, selectedCustomer);
+  }, [selectedCustomer, sales, receipts, salesReturns, statementFilter]);
 
   // ==================== 2. SUPPLIER LEDGER CALCULATIONS ====================
   const supplierList = useMemo(() => {
@@ -942,7 +955,7 @@ export default function LedgerScreen({
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
-                  <span>🏢 Regular Sale</span>
+                  <span>🏢 Regular ({customerListWithBalances.filter((c) => c.hasRegularSales || (c.regBalance?.netDue > 0)).length})</span>
                 </button>
                 <button
                   type="button"
@@ -953,7 +966,7 @@ export default function LedgerScreen({
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                   }`}
                 >
-                  <span>📦 Q-Sale</span>
+                  <span>📦 Q-Sale ({customerListWithBalances.filter((c) => c.hasQSales || (c.qBalance?.netDue > 0)).length})</span>
                 </button>
                 <button
                   type="button"

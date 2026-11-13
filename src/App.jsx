@@ -141,6 +141,9 @@ export default function App() {
           setInterestPayments(merged.interestPayments);
           Storage.saveInterestPayments(merged.interestPayments);
         }
+        if (Array.isArray(merged.godowns)) {
+          Storage.saveGodowns(merged.godowns);
+        }
       },
     });
 

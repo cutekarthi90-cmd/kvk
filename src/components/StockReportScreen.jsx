@@ -48,20 +48,25 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     return Array.from(set).sort().reverse();
   }, [sales, purchases]);
 
-  // Godown list from standard options + any custom godown in existing purchases
+  // Godown list ONLY from user-created godowns or actual purchases (NO hardcoded names)
   const availableGodowns = useMemo(() => {
     const list = [
       { id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' },
-      { id: 'மெயின் குடோன் (Main Godown)', label: 'மெயின் குடோன் (Main Godown)', short: '🏢 மெயின் குடோன்' },
-      { id: 'குடோன் 1 (Godown 1)', label: 'குடோன் 1 (Godown 1)', short: '📦 குடோன் 1' },
-      { id: 'குடோன் 2 (Godown 2)', label: 'குடோன் 2 (Godown 2)', short: '📦 குடோன் 2' },
-      { id: 'மில் குடோன் (Mill Godown)', label: 'மில் குடோன் (Mill Godown)', short: '⚙️ மில் குடோன்' },
     ];
-    const seen = new Set(list.map((l) => l.id));
+    const seen = new Set(['ALL']);
+    const saved = Storage.getGodowns();
+    saved.forEach((g) => {
+      const clean = (g || '').trim();
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
+      }
+    });
     purchases.forEach((p) => {
-      if (p.godown && !seen.has(p.godown)) {
-        seen.add(p.godown);
-        list.push({ id: p.godown, label: p.godown, short: `📍 ${p.godown}` });
+      const clean = (p.godown || '').trim();
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
       }
     });
     return list;
@@ -80,7 +85,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     return purchases.filter((p) => {
       const matchFY = selectedFY === 'ALL' || getFinancialYear(p.date) === selectedFY;
       const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
-      const itemGodown = p.godown || 'மெயின் குடோன் (Main Godown)';
+      const itemGodown = (p.godown || '').trim();
       const matchGodown = selectedGodown === 'ALL' || itemGodown === selectedGodown;
       return matchFY && !isQ && matchGodown;
     });
@@ -107,12 +112,13 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
       if (!matchFY || isQ) return;
 
-      const gId = p.godown || 'மெயின் குடோன் (Main Godown)';
+      const gId = (p.godown || '').trim();
+      if (!gId) return;
       if (!summary[gId]) {
         summary[gId] = {
           id: gId,
           label: gId,
-          short: `📍 ${gId}`,
+          short: `🏢 ${gId}`,
           purchasedBags: 0,
           purchasedValue: 0,
           billCount: 0,
@@ -134,17 +140,15 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
   const reportRows = useMemo(() => {
     return items.map((item) => {
       // 1. Opening Stock Value & Bags
-      // User can customize opening stock value ₹ and bags per item or defaults to initialStock * purchasePrice
-      // Opening stock defaults to Main Godown or ALL
       const customOpening = openingValues[item.id] || {};
-      const isMainOrAll = selectedGodown === 'ALL' || selectedGodown === 'மெயின் குடோன் (Main Godown)';
-      const openingBags = isMainOrAll
+      const isAll = selectedGodown === 'ALL';
+      const openingBags = isAll
         ? customOpening.bags !== undefined
           ? Number(customOpening.bags)
           : Number(item.initialStock) || 0
         : 0;
       const openingRate = Number(item.purchasePrice) || Math.round(Number(item.price) * 0.85);
-      const openingValue = isMainOrAll
+      const openingValue = isAll
         ? customOpening.value !== undefined
           ? Number(customOpening.value)
           : openingBags * openingRate
@@ -164,10 +168,10 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         });
       });
 
-      // 3. Original Sales for selected FY (Sales dispatch from Main or ALL)
+      // 3. Original Sales for selected FY
       let soldBags = 0;
       let soldValue = 0;
-      if (isMainOrAll) {
+      if (isAll) {
         gstSales.forEach((s) => {
           (s.items || []).forEach((si) => {
             if (si.id === item.id) {
@@ -181,9 +185,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       }
 
       // 4. Remaining Stock Bags & Value
-      // Remaining bags = Opening + Purchases - Sales
       const remainingBags = Math.max(0, openingBags + purchasedBags - soldBags);
-      // Valuation at purchase price / cost
       const remainingValue = remainingBags * openingRate;
 
       return {
@@ -378,75 +380,77 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         </div>
       </div>
 
-      {/* Godown Wise Filter Bar */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <Warehouse className="w-4 h-4 text-blue-600" />
-            <span className="text-xs font-black text-slate-800">குடோன் வாரியான இருப்பு (Godown Wise Filter)</span>
+      {/* Godown Wise Filter Bar (Shown only when user has added godowns) */}
+      {availableGodowns.length > 1 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Warehouse className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-black text-slate-800">குடோன் வாரியான இருப்பு (Godown Wise Filter)</span>
+            </div>
+            {selectedGodown !== 'ALL' && (
+              <button
+                type="button"
+                onClick={() => setSelectedGodown('ALL')}
+                className="text-[10px] font-bold text-blue-600 hover:underline"
+              >
+                அனைத்தும் காட்டு (Show All)
+              </button>
+            )}
           </div>
-          {selectedGodown !== 'ALL' && (
-            <button
-              type="button"
-              onClick={() => setSelectedGodown('ALL')}
-              className="text-[10px] font-bold text-blue-600 hover:underline"
-            >
-              அனைத்தும் காட்டு (Show All)
-            </button>
-          )}
-        </div>
 
-        {/* Horizontal Godown Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-          {availableGodowns.map((g) => {
-            const isActive = selectedGodown === g.id;
-            return (
-              <button
-                key={g.id}
-                type="button"
-                onClick={() => setSelectedGodown(g.id)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all flex items-center gap-1 ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
-                }`}
-              >
-                <span>{g.short}</span>
-              </button>
-            );
-          })}
-        </div>
+          {/* Horizontal Godown Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            {availableGodowns.map((g) => {
+              const isActive = selectedGodown === g.id;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setSelectedGodown(g.id)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all flex items-center gap-1 ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
+                  }`}
+                >
+                  <span>{g.short}</span>
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Mini Godown Summary Badges */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
-          {godownBreakdown.map((gb) => {
-            const isSelected = selectedGodown === gb.id;
-            return (
-              <button
-                key={gb.id}
-                type="button"
-                onClick={() => setSelectedGodown(gb.id)}
-                className={`p-2 rounded-lg text-left transition-all border ${
-                  isSelected
-                    ? 'bg-blue-50 border-blue-400 shadow-2xs'
-                    : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold text-slate-700 truncate">{gb.short}</span>
-                  <span className="text-[9px] font-bold text-slate-400">{gb.billCount} bills</span>
-                </div>
-                <div className="text-xs font-black text-slate-900 mt-0.5">
-                  {gb.purchasedBags} Bags
-                </div>
-                <div className="text-[10px] font-semibold text-blue-700">
-                  {formatCurrency(gb.purchasedValue)}
-                </div>
-              </button>
-            );
-          })}
+          {/* Mini Godown Summary Badges */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+            {godownBreakdown.map((gb) => {
+              const isSelected = selectedGodown === gb.id;
+              return (
+                <button
+                  key={gb.id}
+                  type="button"
+                  onClick={() => setSelectedGodown(gb.id)}
+                  className={`p-2 rounded-lg text-left transition-all border ${
+                    isSelected
+                      ? 'bg-blue-50 border-blue-400 shadow-2xs'
+                      : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-700 truncate">{gb.short}</span>
+                    <span className="text-[9px] font-bold text-slate-400">{gb.billCount} bills</span>
+                  </div>
+                  <div className="text-xs font-black text-slate-900 mt-0.5">
+                    {gb.purchasedBags} Bags
+                  </div>
+                  <div className="text-[10px] font-semibold text-blue-700">
+                    {formatCurrency(gb.purchasedValue)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* High-Level Financial Stock Dashboard */}
       <div className="grid grid-cols-2 gap-2 text-xs">

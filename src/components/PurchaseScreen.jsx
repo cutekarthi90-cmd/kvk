@@ -42,9 +42,18 @@ export default function PurchaseScreen({
   const [supplierOpeningBalance, setSupplierOpeningBalance] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
-  const [selectedGodown, setSelectedGodown] = useState('மெயின் குடோன் (Main Godown)');
-  const [customGodown, setCustomGodown] = useState('');
-  const [isCustomGodown, setIsCustomGodown] = useState(false);
+  const [godownsList, setGodownsList] = useState(() => {
+    const saved = Storage.getGodowns();
+    const fromPurchases = purchases.map((p) => (p.godown || '').trim()).filter(Boolean);
+    const set = new Set([...saved, ...fromPurchases]);
+    return Array.from(set);
+  });
+  const [selectedGodown, setSelectedGodown] = useState(() => {
+    const saved = Storage.getGodowns();
+    return saved.length > 0 ? saved[0] : '';
+  });
+  const [newGodownInput, setNewGodownInput] = useState('');
+  const [isAddingGodown, setIsAddingGodown] = useState(false);
   const [cart, setCart] = useState([]);
   const [freightCharges, setFreightCharges] = useState(''); // Freight / வண்டி வாடகை ₹
   const [discount, setDiscount] = useState(''); // Discount on Payment (தள்ளுபடி)
@@ -130,9 +139,35 @@ export default function PurchaseScreen({
     setIsQPurchase(false);
     setDate(new Date().toISOString().split('T')[0]);
     setIsAddingNewSupplier(false);
-    setSelectedGodown('மெயின் குடோன் (Main Godown)');
-    setCustomGodown('');
-    setIsCustomGodown(false);
+    setNewGodownInput('');
+    setIsAddingGodown(false);
+  };
+
+  const handleAddGodown = (nameToAdd) => {
+    const clean = (nameToAdd || newGodownInput).trim();
+    if (!clean) return;
+    if (!godownsList.includes(clean)) {
+      const updated = [...godownsList, clean];
+      setGodownsList(updated);
+      Storage.saveGodowns(updated);
+      SyncService.dispatch('SAVE_GODOWNS', updated);
+    }
+    setSelectedGodown(clean);
+    setNewGodownInput('');
+    setIsAddingGodown(false);
+    showToast(`குடோன் "${clean}" சேர்க்கப்பட்டது!`);
+  };
+
+  const handleDeleteGodown = (e, nameToDelete) => {
+    e.stopPropagation();
+    const updated = godownsList.filter((g) => g !== nameToDelete);
+    setGodownsList(updated);
+    Storage.saveGodowns(updated);
+    SyncService.dispatch('SAVE_GODOWNS', updated);
+    if (selectedGodown === nameToDelete) {
+      setSelectedGodown(updated.length > 0 ? updated[0] : '');
+    }
+    showToast(`குடோன் "${nameToDelete}" நீக்கப்பட்டது.`);
   };
 
   const handleSelectSupplier = (s) => {
@@ -197,9 +232,13 @@ export default function PurchaseScreen({
       }
     }
 
-    const finalGodown = isCustomGodown && customGodown.trim()
-      ? customGodown.trim()
-      : (selectedGodown || 'மெயின் குடோன் (Main Godown)');
+    const finalGodown = (selectedGodown || newGodownInput || '').trim();
+    if (finalGodown && !godownsList.includes(finalGodown)) {
+      const updated = [...godownsList, finalGodown];
+      setGodownsList(updated);
+      Storage.saveGodowns(updated);
+      SyncService.dispatch('SAVE_GODOWNS', updated);
+    }
 
     const newPurchase = {
       id: `pur-${Date.now()}`,
@@ -501,81 +540,103 @@ export default function PurchaseScreen({
             )}
           </div>
 
-          {/* Godown Selection Card */}
+          {/* Godown Entry Card - User's Own Godowns */}
           <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
                 <Warehouse className="w-3.5 h-3.5 text-amber-600" />
-                Stock In Godown (சரக்கு இருப்பு வைக்கும் குடோன்) *
+                Stock In Godown (சரக்கு இறக்கும் குடோன்)
               </label>
-              <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
-                {isCustomGodown ? (customGodown || 'Custom') : selectedGodown}
-              </span>
+              {selectedGodown && (
+                <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                  {selectedGodown}
+                </span>
+              )}
             </div>
 
-            {/* Quick Godown Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs font-bold">
-              {[
-                { id: 'மெயின் குடோன் (Main Godown)', label: '🏢 மெயின் குடோன்' },
-                { id: 'குடோன் 1 (Godown 1)', label: '📦 குடோன் 1' },
-                { id: 'குடோன் 2 (Godown 2)', label: '📦 குடோன் 2' },
-                { id: 'மில் குடோன் (Mill Godown)', label: '⚙️ மில் குடோன்' },
-              ].map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedGodown(g.id);
-                    setIsCustomGodown(false);
-                  }}
-                  className={`py-2 px-2 rounded-lg text-center transition-all text-xs font-extrabold border ${
-                    selectedGodown === g.id && !isCustomGodown
-                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
+            {/* List of user's added godowns */}
+            {godownsList.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {godownsList.map((g) => {
+                  const isSelected = selectedGodown === g;
+                  return (
+                    <div
+                      key={g}
+                      onClick={() => {
+                        setSelectedGodown(g);
+                        setIsAddingGodown(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 border ${
+                        isSelected
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span>🏢 {g}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDeleteGodown(e, g)}
+                        className={`hover:text-red-500 rounded p-0.5 ml-0.5 ${
+                          isSelected ? 'text-amber-200' : 'text-slate-400'
+                        }`}
+                        title="Remove Godown"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            {/* Custom Godown Button / Input */}
-            <div className="pt-0.5">
-              {!isCustomGodown ? (
+            {/* Input to add / type godown */}
+            {!isAddingGodown && godownsList.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setIsAddingGodown(true)}
+                className="text-xs text-amber-700 font-bold hover:underline flex items-center gap-1 pt-1"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ புதிய குடோன் சேர்க்க (+ Add Godown)</span>
+              </button>
+            ) : (
+              <div className="flex gap-2 items-center pt-1">
+                <input
+                  type="text"
+                  placeholder="குடோன் பெயர் தட்டச்சு செய்க (e.g. குடோன் A / மெயின் குடோன்)..."
+                  value={newGodownInput}
+                  onChange={(e) => setNewGodownInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddGodown();
+                    }
+                  }}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-amber-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
+                  autoFocus={isAddingGodown}
+                />
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsCustomGodown(true);
-                    setSelectedGodown('OTHER');
-                  }}
-                  className="text-xs text-amber-700 font-bold hover:underline flex items-center gap-1"
+                  onClick={() => handleAddGodown()}
+                  className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shrink-0 shadow-xs"
                 >
-                  <Plus className="w-3 h-3" />
-                  + வேறு குடோன் பெயர் சேர்க்க (Custom Godown Name)
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add</span>
                 </button>
-              ) : (
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    placeholder="குடோன் பெயர் தட்டச்சு செய்க (e.g. அண்ணா குடோன்)..."
-                    value={customGodown}
-                    onChange={(e) => setCustomGodown(e.target.value)}
-                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-amber-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
-                    autoFocus
-                  />
+                {godownsList.length > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      setIsCustomGodown(false);
-                      setSelectedGodown('மெயின் குடோன் (Main Godown)');
+                      setIsAddingGodown(false);
+                      setNewGodownInput('');
                     }}
-                    className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 font-semibold"
+                    className="px-2 py-2 text-slate-400 hover:text-slate-600 text-xs font-semibold"
                   >
                     Cancel
                   </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* TAP PAD TO ADD ITEMS */}

@@ -1075,6 +1075,13 @@
   ],
   "sales": [
     {
+      "id": "test-0-1794561047437",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "isQSale": false,
+      "date": "2026-11-13"
+    },
+    {
       "id": "sale-1793176600000",
       "invoiceNo": "2",
       "date": "2026-10-28",
@@ -1127,6 +1134,12 @@
   "receipts": [],
   "purchases": [
     {
+      "id": "test-1-1794561047543",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "date": "2026-11-13"
+    },
+    {
       "id": "pur-1793882542135",
       "billNo": "1",
       "date": "2026-11-05",
@@ -1154,7 +1167,7 @@
       "createdAt": "2026-11-05T12:42:22.135Z"
     }
   ],
-  "lastUpdated": "2026-11-10T09:44:09.343Z",
+  "lastUpdated": "2026-11-13T09:10:47.941Z",
   "suppliers": [
     {
       "id": "sup-1793803586539",
@@ -1174,6 +1187,12 @@
   ],
   "supplierPayments": [],
   "salesReturns": [
+    {
+      "id": "test-5-1794561047943",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "date": "2026-11-13"
+    },
     {
       "id": "ret-1793293802908",
       "returnNo": 1,
@@ -1199,6 +1218,12 @@
   ],
   "expenses": [
     {
+      "id": "test-2-1794561047643",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "date": "2026-11-13"
+    },
+    {
       "id": "exp-1793775787661",
       "date": "2026-11-04",
       "category": "rent",
@@ -1209,7 +1234,21 @@
       "createdAt": "2026-11-04T07:03:07.661Z"
     }
   ],
-  "interestLoans": [],
-  "interestPayments": [],
+  "interestLoans": [
+    {
+      "id": "test-3-1794561047744",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "date": "2026-11-13"
+    }
+  ],
+  "interestPayments": [
+    {
+      "id": "test-4-1794561047844",
+      "name": "Sync Test",
+      "godown": "குடோன் 1 (Godown 1)",
+      "date": "2026-11-13"
+    }
+  ],
   "deletedIds": []
 }
