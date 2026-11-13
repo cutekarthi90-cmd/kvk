@@ -17,7 +17,8 @@ import {
   Tag,
   ShieldCheck,
   ShieldAlert,
-  Percent
+  Percent,
+  Warehouse
 } from 'lucide-react';
 import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
@@ -41,6 +42,9 @@ export default function PurchaseScreen({
   const [supplierOpeningBalance, setSupplierOpeningBalance] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
+  const [selectedGodown, setSelectedGodown] = useState('மெயின் குடோன் (Main Godown)');
+  const [customGodown, setCustomGodown] = useState('');
+  const [isCustomGodown, setIsCustomGodown] = useState(false);
   const [cart, setCart] = useState([]);
   const [freightCharges, setFreightCharges] = useState(''); // Freight / வண்டி வாடகை ₹
   const [discount, setDiscount] = useState(''); // Discount on Payment (தள்ளுபடி)
@@ -126,6 +130,9 @@ export default function PurchaseScreen({
     setIsQPurchase(false);
     setDate(new Date().toISOString().split('T')[0]);
     setIsAddingNewSupplier(false);
+    setSelectedGodown('மெயின் குடோன் (Main Godown)');
+    setCustomGodown('');
+    setIsCustomGodown(false);
   };
 
   const handleSelectSupplier = (s) => {
@@ -190,6 +197,10 @@ export default function PurchaseScreen({
       }
     }
 
+    const finalGodown = isCustomGodown && customGodown.trim()
+      ? customGodown.trim()
+      : (selectedGodown || 'மெயின் குடோன் (Main Godown)');
+
     const newPurchase = {
       id: `pur-${Date.now()}`,
       billNo,
@@ -199,11 +210,13 @@ export default function PurchaseScreen({
       supplierGstin: cleanSupGstin || existing?.gstin || '',
       isQPurchase,
       billType: isQPurchase ? 'Q_PURCHASE' : 'GST_BILL',
+      godown: finalGodown,
       items: cart.map((i) => ({
         ...i,
         qty: Math.max(1, Number(i.qty) || 1),
         price: Math.max(0, Number(i.price) || 0),
         unit: 'Bag',
+        godown: finalGodown,
       })),
       subTotal,
       freightCharges: numFreight,
@@ -231,7 +244,8 @@ export default function PurchaseScreen({
       const q = historySearch.toLowerCase();
       return (
         String(p.billNo).toLowerCase().includes(q) ||
-        (p.supplierName && p.supplierName.toLowerCase().includes(q))
+        (p.supplierName && p.supplierName.toLowerCase().includes(q)) ||
+        (p.godown && p.godown.toLowerCase().includes(q))
       );
     });
 
@@ -485,6 +499,83 @@ export default function PurchaseScreen({
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Godown Selection Card */}
+          <div className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 uppercase flex items-center gap-1.5">
+                <Warehouse className="w-3.5 h-3.5 text-amber-600" />
+                Stock In Godown (சரக்கு இருப்பு வைக்கும் குடோன்) *
+              </label>
+              <span className="text-[10px] bg-amber-50 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                {isCustomGodown ? (customGodown || 'Custom') : selectedGodown}
+              </span>
+            </div>
+
+            {/* Quick Godown Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-xs font-bold">
+              {[
+                { id: 'மெயின் குடோன் (Main Godown)', label: '🏢 மெயின் குடோன்' },
+                { id: 'குடோன் 1 (Godown 1)', label: '📦 குடோன் 1' },
+                { id: 'குடோன் 2 (Godown 2)', label: '📦 குடோன் 2' },
+                { id: 'மில் குடோன் (Mill Godown)', label: '⚙️ மில் குடோன்' },
+              ].map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedGodown(g.id);
+                    setIsCustomGodown(false);
+                  }}
+                  className={`py-2 px-2 rounded-lg text-center transition-all text-xs font-extrabold border ${
+                    selectedGodown === g.id && !isCustomGodown
+                      ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Godown Button / Input */}
+            <div className="pt-0.5">
+              {!isCustomGodown ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCustomGodown(true);
+                    setSelectedGodown('OTHER');
+                  }}
+                  className="text-xs text-amber-700 font-bold hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" />
+                  + வேறு குடோன் பெயர் சேர்க்க (Custom Godown Name)
+                </button>
+              ) : (
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="குடோன் பெயர் தட்டச்சு செய்க (e.g. அண்ணா குடோன்)..."
+                    value={customGodown}
+                    onChange={(e) => setCustomGodown(e.target.value)}
+                    className="flex-1 px-3 py-1.5 bg-slate-50 border border-amber-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:bg-white focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomGodown(false);
+                      setSelectedGodown('மெயின் குடோன் (Main Godown)');
+                    }}
+                    className="text-xs text-slate-500 hover:text-slate-700 px-2 py-1 font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* TAP PAD TO ADD ITEMS */}
@@ -845,6 +936,12 @@ export default function PurchaseScreen({
                             }`}
                           >
                             {p.paymentStatus}
+                          </span>
+
+                          {/* Godown Badge */}
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                            <Warehouse className="w-2.5 h-2.5 text-amber-600" />
+                            {p.godown || 'மெயின் குடோன்'}
                           </span>
                         </div>
 

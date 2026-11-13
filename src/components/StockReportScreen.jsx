@@ -10,13 +10,16 @@ import {
   CheckCircle,
   Clock,
   Sparkles,
-  Info
+  Info,
+  Warehouse,
+  Building2
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '../services/pdfService';
 import { Storage, getFinancialYear } from '../services/storage';
 
 export default function StockReportScreen({ items = [], sales = [], purchases = [] }) {
   const [selectedFY, setSelectedFY] = useState(() => getFinancialYear());
+  const [selectedGodown, setSelectedGodown] = useState('ALL');
   const [openingValues, setOpeningValues] = useState(() => {
     try {
       const saved = localStorage.getItem('quickbill_gst_opening_stock_values');
@@ -45,6 +48,25 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     return Array.from(set).sort().reverse();
   }, [sales, purchases]);
 
+  // Godown list from standard options + any custom godown in existing purchases
+  const availableGodowns = useMemo(() => {
+    const list = [
+      { id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' },
+      { id: 'மெயின் குடோன் (Main Godown)', label: 'மெயின் குடோன் (Main Godown)', short: '🏢 மெயின் குடோன்' },
+      { id: 'குடோன் 1 (Godown 1)', label: 'குடோன் 1 (Godown 1)', short: '📦 குடோன் 1' },
+      { id: 'குடோன் 2 (Godown 2)', label: 'குடோன் 2 (Godown 2)', short: '📦 குடோன் 2' },
+      { id: 'மில் குடோன் (Mill Godown)', label: 'மில் குடோன் (Mill Godown)', short: '⚙️ மில் குடோன்' },
+    ];
+    const seen = new Set(list.map((l) => l.id));
+    purchases.forEach((p) => {
+      if (p.godown && !seen.has(p.godown)) {
+        seen.add(p.godown);
+        list.push({ id: p.godown, label: p.godown, short: `📍 ${p.godown}` });
+      }
+    });
+    return list;
+  }, [purchases]);
+
   // Filter ONLY Original GST Bills (excluding Q-Sales & Q-Purchases)
   const gstSales = useMemo(() => {
     return sales.filter((s) => {
@@ -58,21 +80,77 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     return purchases.filter((p) => {
       const matchFY = selectedFY === 'ALL' || getFinancialYear(p.date) === selectedFY;
       const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
-      return matchFY && !isQ;
+      const itemGodown = p.godown || 'மெயின் குடோன் (Main Godown)';
+      const matchGodown = selectedGodown === 'ALL' || itemGodown === selectedGodown;
+      return matchFY && !isQ && matchGodown;
     });
-  }, [purchases, selectedFY]);
+  }, [purchases, selectedFY, selectedGodown]);
+
+  // Godown breakdown summary cards (Total Bags & Value per godown)
+  const godownBreakdown = useMemo(() => {
+    const summary = {};
+    availableGodowns
+      .filter((g) => g.id !== 'ALL')
+      .forEach((g) => {
+        summary[g.id] = {
+          id: g.id,
+          label: g.label,
+          short: g.short,
+          purchasedBags: 0,
+          purchasedValue: 0,
+          billCount: 0,
+        };
+      });
+
+    purchases.forEach((p) => {
+      const matchFY = selectedFY === 'ALL' || getFinancialYear(p.date) === selectedFY;
+      const isQ = p.isQPurchase || p.billType === 'Q_PURCHASE';
+      if (!matchFY || isQ) return;
+
+      const gId = p.godown || 'மெயின் குடோன் (Main Godown)';
+      if (!summary[gId]) {
+        summary[gId] = {
+          id: gId,
+          label: gId,
+          short: `📍 ${gId}`,
+          purchasedBags: 0,
+          purchasedValue: 0,
+          billCount: 0,
+        };
+      }
+      summary[gId].billCount += 1;
+      (p.items || []).forEach((pi) => {
+        const q = Number(pi.qty) || 0;
+        const r = Number(pi.price) || 0;
+        summary[gId].purchasedBags += q;
+        summary[gId].purchasedValue += q * r;
+      });
+    });
+
+    return Object.values(summary);
+  }, [availableGodowns, purchases, selectedFY]);
 
   // Calculate detailed stock metrics for every item
   const reportRows = useMemo(() => {
     return items.map((item) => {
       // 1. Opening Stock Value & Bags
       // User can customize opening stock value ₹ and bags per item or defaults to initialStock * purchasePrice
+      // Opening stock defaults to Main Godown or ALL
       const customOpening = openingValues[item.id] || {};
-      const openingBags = customOpening.bags !== undefined ? Number(customOpening.bags) : (Number(item.initialStock) || 0);
+      const isMainOrAll = selectedGodown === 'ALL' || selectedGodown === 'மெயின் குடோன் (Main Godown)';
+      const openingBags = isMainOrAll
+        ? customOpening.bags !== undefined
+          ? Number(customOpening.bags)
+          : Number(item.initialStock) || 0
+        : 0;
       const openingRate = Number(item.purchasePrice) || Math.round(Number(item.price) * 0.85);
-      const openingValue = customOpening.value !== undefined ? Number(customOpening.value) : (openingBags * openingRate);
+      const openingValue = isMainOrAll
+        ? customOpening.value !== undefined
+          ? Number(customOpening.value)
+          : openingBags * openingRate
+        : 0;
 
-      // 2. Original Purchases for selected FY
+      // 2. Original Purchases for selected FY & selected Godown
       let purchasedBags = 0;
       let purchasedValue = 0;
       gstPurchases.forEach((p) => {
@@ -81,24 +159,26 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
             const q = Number(pi.qty) || 0;
             const r = Number(pi.price) || 0;
             purchasedBags += q;
-            purchasedValue += (q * r);
+            purchasedValue += q * r;
           }
         });
       });
 
-      // 3. Original Sales for selected FY
+      // 3. Original Sales for selected FY (Sales dispatch from Main or ALL)
       let soldBags = 0;
       let soldValue = 0;
-      gstSales.forEach((s) => {
-        (s.items || []).forEach((si) => {
-          if (si.id === item.id) {
-            const q = Number(si.qty) || 0;
-            const r = Number(si.price) || 0;
-            soldBags += q;
-            soldValue += (q * r);
-          }
+      if (isMainOrAll) {
+        gstSales.forEach((s) => {
+          (s.items || []).forEach((si) => {
+            if (si.id === item.id) {
+              const q = Number(si.qty) || 0;
+              const r = Number(si.price) || 0;
+              soldBags += q;
+              soldValue += q * r;
+            }
+          });
         });
-      });
+      }
 
       // 4. Remaining Stock Bags & Value
       // Remaining bags = Opening + Purchases - Sales
@@ -121,7 +201,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         remainingValue,
       };
     });
-  }, [items, gstSales, gstPurchases, openingValues]);
+  }, [items, gstSales, gstPurchases, openingValues, selectedGodown]);
 
   // Overall Totals
   const totals = useMemo(() => {
@@ -175,6 +255,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     rows.push([`"${shop.name || 'KVK THANIYA MANDI'}"`]);
     rows.push([`"ORIGINAL GST BILL - STOCK VALUE & AUDIT REPORT"`]);
     rows.push([`"Financial Year: ${selectedFY}"`]);
+    rows.push([`"Godown Filter: ${selectedGodown === 'ALL' ? 'All Godowns (அனைத்து குடோன்கள்)' : selectedGodown}"`]);
     rows.push([`"Generated on: ${new Date().toLocaleDateString('en-IN')}"`]);
     rows.push([]);
     rows.push([
@@ -227,7 +308,8 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `Original_Bill_Stock_Report_FY_${selectedFY}.csv`);
+    const fileSuffix = selectedGodown === 'ALL' ? 'All_Godowns' : selectedGodown.replace(/[^a-zA-Z0-9]/g, '_');
+    link.setAttribute('download', `Original_Bill_Stock_Report_${fileSuffix}_FY_${selectedFY}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -293,6 +375,76 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
           >
             ✏️ Set Opening Value
           </button>
+        </div>
+      </div>
+
+      {/* Godown Wise Filter Bar */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Warehouse className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-black text-slate-800">குடோன் வாரியான இருப்பு (Godown Wise Filter)</span>
+          </div>
+          {selectedGodown !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => setSelectedGodown('ALL')}
+              className="text-[10px] font-bold text-blue-600 hover:underline"
+            >
+              அனைத்தும் காட்டு (Show All)
+            </button>
+          )}
+        </div>
+
+        {/* Horizontal Godown Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+          {availableGodowns.map((g) => {
+            const isActive = selectedGodown === g.id;
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => setSelectedGodown(g.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all flex items-center gap-1 ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
+                }`}
+              >
+                <span>{g.short}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Mini Godown Summary Badges */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+          {godownBreakdown.map((gb) => {
+            const isSelected = selectedGodown === gb.id;
+            return (
+              <button
+                key={gb.id}
+                type="button"
+                onClick={() => setSelectedGodown(gb.id)}
+                className={`p-2 rounded-lg text-left transition-all border ${
+                  isSelected
+                    ? 'bg-blue-50 border-blue-400 shadow-2xs'
+                    : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-slate-700 truncate">{gb.short}</span>
+                  <span className="text-[9px] font-bold text-slate-400">{gb.billCount} bills</span>
+                </div>
+                <div className="text-xs font-black text-slate-900 mt-0.5">
+                  {gb.purchasedBags} Bags
+                </div>
+                <div className="text-[10px] font-semibold text-blue-700">
+                  {formatCurrency(gb.purchasedValue)}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -367,9 +519,16 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       {/* Item-wise Stock Breakdown Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-          <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
-            Item-wise Stock Valuation ({reportRows.length} தானியங்கள்)
-          </h4>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
+              Item-wise Stock Valuation ({reportRows.length} தானியங்கள்)
+            </h4>
+            {selectedGodown !== 'ALL' && (
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                {selectedGodown}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">

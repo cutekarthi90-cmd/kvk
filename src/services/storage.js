@@ -1586,16 +1586,16 @@ export const Storage = {
   },
 
   // Calculate customer balance including Opening Balance & Sales Returns (can filter by type: 'ALL' | 'REGULAR' | 'Q_SALE')
-  getCustomerBalance: (customerId, type = 'ALL') => {
-    const cust = Storage.getCustomers().find((c) => c.id === customerId);
+  getCustomerBalance: (customerId, type = 'ALL', optSales = null, optReceipts = null, optReturns = null, optCust = null) => {
+    const cust = optCust || Storage.getCustomers().find((c) => c && c.id === customerId);
     const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
     // For Q-Sale separate view, opening balance is typically attached to regular account unless specified
     const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
 
-    let sales = Storage.getSales().filter((s) => s.customerId === customerId);
-    let receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
-    let returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+    let sales = (optSales || Storage.getSales() || []).filter((s) => s && s.customerId === customerId);
+    let receipts = (optReceipts || Storage.getReceipts() || []).filter((r) => r && r.customerId === customerId);
+    let returns = (optReturns || Storage.getSalesReturns() || []).filter((r) => r && r.customerId === customerId);
 
     if (type === 'REGULAR') {
       sales = sales.filter((s) => !s.isQSale && s.billType !== 'Q_SALE');
@@ -1632,15 +1632,15 @@ export const Storage = {
   },
 
   // Full customer ledger transactions sorted by date ascending with Opening Balance & Returns
-  getCustomerLedger: (customerId, type = 'ALL') => {
-    const cust = Storage.getCustomers().find((c) => c.id === customerId);
+  getCustomerLedger: (customerId, type = 'ALL', optSales = null, optReceipts = null, optReturns = null, optCust = null) => {
+    const cust = optCust || Storage.getCustomers().find((c) => c && c.id === customerId);
     const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
     const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
 
-    let sales = Storage.getSales().filter((s) => s.customerId === customerId);
-    let receipts = Storage.getReceipts().filter((r) => r.customerId === customerId);
-    let returns = Storage.getSalesReturns().filter((r) => r.customerId === customerId);
+    let sales = (optSales || Storage.getSales() || []).filter((s) => s && s.customerId === customerId);
+    let receipts = (optReceipts || Storage.getReceipts() || []).filter((r) => r && r.customerId === customerId);
+    let returns = (optReturns || Storage.getSalesReturns() || []).filter((r) => r && r.customerId === customerId);
 
     if (type === 'REGULAR') {
       sales = sales.filter((s) => !s.isQSale && s.billType !== 'Q_SALE');
@@ -1656,11 +1656,11 @@ export const Storage = {
 
     // 1. Opening Balance Transaction (shown in ALL or REGULAR)
     if (opBal > 0) {
-      const opDate = cust.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
+      const opDate = cust?.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
       transactions.push({
         id: `cust-${customerId}-opbal`,
         date: opDate,
-        createdAt: cust.createdAt || '2026-01-01',
+        createdAt: cust?.createdAt || '2026-01-01',
         type: 'OPENING',
         refNo: 'OP-BAL',
         description: 'Opening Balance (பழைய பாக்கி)',
@@ -1671,17 +1671,18 @@ export const Storage = {
 
     sales.forEach((s) => {
       const isQ = s.isQSale || s.billType === 'Q_SALE';
+      const sItems = Array.isArray(s.items) ? s.items : [];
       transactions.push({
         id: s.id,
         date: s.date,
         createdAt: s.createdAt || s.date,
         type: isQ ? 'Q_SALE' : 'SALE',
         refNo: String(s.invoiceNo || '1'),
-        description: `${isQ ? '📦 Q-Sale' : 'Sale'}: ${s.items.length} items (${s.items.map((i) => i.name).slice(0, 2).join(', ')}${s.items.length > 2 ? '...' : ''})`,
+        description: `${isQ ? '📦 Q-Sale' : 'Sale'}: ${sItems.length} items (${sItems.map((i) => i.name).slice(0, 2).join(', ')}${sItems.length > 2 ? '...' : ''})`,
         debit: Number(s.grandTotal) || 0,
         credit: 0,
         paidAmount: Number(s.paidAmount) || 0,
-        items: s.items,
+        items: sItems,
         raw: s,
         isQSale: isQ,
       });
@@ -1716,16 +1717,17 @@ export const Storage = {
     });
 
     returns.forEach((ret) => {
+      const retItems = Array.isArray(ret.items) ? ret.items : [];
       transactions.push({
         id: ret.id,
         date: ret.date,
         createdAt: ret.createdAt || ret.date,
         type: 'RETURN',
         refNo: `SR-${ret.returnNo || '1'}`,
-        description: `Sales Return (விற்பனை திருப்பம்): ${ret.items.length} items (${ret.reason || 'Goods Return'})`,
+        description: `Sales Return (விற்பனை திருப்பம்): ${retItems.length} items (${ret.reason || 'Goods Return'})`,
         debit: 0,
         credit: Number(ret.totalAmount) || 0,
-        items: ret.items,
+        items: retItems,
         raw: ret,
       });
     });

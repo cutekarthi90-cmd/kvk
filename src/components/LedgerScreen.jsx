@@ -81,20 +81,20 @@ export default function LedgerScreen({
 
   // ==================== 1. CUSTOMER LEDGER CALCULATIONS ====================
   const customerListWithBalances = useMemo(() => {
-    return customers.map((c) => {
-      const regBal = Storage.getCustomerBalance(c.id, 'REGULAR');
-      const qBal = Storage.getCustomerBalance(c.id, 'Q_SALE');
-      const allBal = Storage.getCustomerBalance(c.id, 'ALL');
+    return (customers || []).map((c) => {
+      const regBal = Storage.getCustomerBalance(c.id, 'REGULAR', sales, receipts, salesReturns, c);
+      const qBal = Storage.getCustomerBalance(c.id, 'Q_SALE', sales, receipts, salesReturns, c);
+      const allBal = Storage.getCustomerBalance(c.id, 'ALL', sales, receipts, salesReturns, c);
 
-      const custSales = sales.filter((s) => s.customerId === c.id);
+      const custSales = (sales || []).filter((s) => s && s.customerId === c.id);
       const hasRegularSales = custSales.some((s) => !s.isQSale && s.billType !== 'Q_SALE') || (Number(c.openingBalance) > 0);
       const hasQSales = custSales.some((s) => s.isQSale || s.billType === 'Q_SALE');
 
       return {
         ...c,
-        balance: allBal,
-        regBalance: regBal,
-        qBalance: qBal,
+        balance: allBal || { netDue: 0, totalSales: 0, totalPaid: 0 },
+        regBalance: regBal || { netDue: 0, totalSales: 0, totalPaid: 0 },
+        qBalance: qBal || { netDue: 0, totalSales: 0, totalPaid: 0 },
         hasRegularSales,
         hasQSales,
       };
@@ -118,7 +118,7 @@ export default function LedgerScreen({
     const q = search.toLowerCase();
     return list.filter(
       (c) =>
-        c.name.toLowerCase().includes(q) ||
+        (c.name && c.name.toLowerCase().includes(q)) ||
         (c.phone && c.phone.includes(q)) ||
         (c.gstin && c.gstin.toLowerCase().includes(q))
     );
@@ -126,12 +126,12 @@ export default function LedgerScreen({
 
   const currentTabOutstanding = useMemo(() => {
     if (customerSubTab === 'regular') {
-      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.regBalance.netDue), 0);
+      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, Number(c.regBalance?.netDue) || 0), 0);
     }
     if (customerSubTab === 'qsale') {
-      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.qBalance.netDue), 0);
+      return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, Number(c.qBalance?.netDue) || 0), 0);
     }
-    return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, c.balance.netDue), 0);
+    return customerListWithBalances.reduce((sum, c) => sum + Math.max(0, Number(c.balance?.netDue) || 0), 0);
   }, [customerListWithBalances, customerSubTab]);
 
   const selectedCustomer = useMemo(() => {
@@ -997,12 +997,13 @@ export default function LedgerScreen({
                   </div>
                 ) : (
                   displayedCustomers.map((c) => {
-                    const dueAmt =
+                    const dueAmt = Number(
                       customerSubTab === 'qsale'
-                        ? c.qBalance.netDue
+                        ? c.qBalance?.netDue
                         : customerSubTab === 'regular'
-                        ? c.regBalance.netDue
-                        : c.balance.netDue;
+                        ? c.regBalance?.netDue
+                        : c.balance?.netDue
+                    ) || 0;
 
                     return (
                       <div
