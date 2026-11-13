@@ -1075,6 +1075,10 @@
   ],
   "sales": [
     {
+      "id": "v-sale",
+      "test": true
+    },
+    {
       "id": "test-0-1794561047437",
       "name": "Sync Test",
       "godown": "குடோன் 1 (Godown 1)",
@@ -1131,8 +1135,18 @@
       "paymentMode": ""
     }
   ],
-  "receipts": [],
+  "receipts": [
+    {
+      "id": "v-rcpt",
+      "test": true
+    }
+  ],
   "purchases": [
+    {
+      "id": "v-pur",
+      "test": true,
+      "godown": "என் குடோன்"
+    },
     {
       "id": "test-1-1794561047543",
       "name": "Sync Test",
@@ -1167,7 +1181,7 @@
       "createdAt": "2026-11-05T12:42:22.135Z"
     }
   ],
-  "lastUpdated": "2026-11-13T09:10:47.941Z",
+  "lastUpdated": "2026-11-13T09:23:26.621Z",
   "suppliers": [
     {
       "id": "sup-1793803586539",
@@ -1187,6 +1201,10 @@
   ],
   "supplierPayments": [],
   "salesReturns": [
+    {
+      "id": "v-ret",
+      "test": true
+    },
     {
       "id": "test-5-1794561047943",
       "name": "Sync Test",
@@ -1218,6 +1236,10 @@
   ],
   "expenses": [
     {
+      "id": "v-exp",
+      "test": true
+    },
+    {
       "id": "test-2-1794561047643",
       "name": "Sync Test",
       "godown": "குடோன் 1 (Godown 1)",
@@ -1236,6 +1258,10 @@
   ],
   "interestLoans": [
     {
+      "id": "v-loan",
+      "test": true
+    },
+    {
       "id": "test-3-1794561047744",
       "name": "Sync Test",
       "godown": "குடோன் 1 (Godown 1)",
@@ -1243,6 +1269,10 @@
     }
   ],
   "interestPayments": [
+    {
+      "id": "v-pay",
+      "test": true
+    },
     {
       "id": "test-4-1794561047844",
       "name": "Sync Test",
