@@ -48,7 +48,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     return Array.from(set).sort().reverse();
   }, [sales, purchases]);
 
-  // Godown list ONLY from user-created godowns or actual purchases (NO hardcoded names)
+  // Godown list from user-created godowns, purchases, or items' initial stock
   const availableGodowns = useMemo(() => {
     const list = [
       { id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' },
@@ -59,6 +59,13 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       ...Storage.getGodowns(),
       ...(purchases || []).map((p) => p.godown),
     ];
+    items.forEach((item) => {
+      if (item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+        Object.keys(item.godownInitialStock).forEach((g) => {
+          if (Number(item.godownInitialStock[g]) > 0) pool.push(g);
+        });
+      }
+    });
     pool.forEach((g) => {
       const clean = (g || '').trim();
       if (clean && !seen.has(clean)) {
@@ -67,7 +74,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       }
     });
     return list;
-  }, [godowns, purchases]);
+  }, [godowns, purchases, items]);
 
   // Filter ONLY Original GST Bills (excluding Q-Sales & Q-Purchases)
   const gstSales = useMemo(() => {
@@ -139,17 +146,16 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       // 1. Opening Stock Value & Bags
       const customOpening = openingValues[item.id] || {};
       const isAll = selectedGodown === 'ALL';
+      const godownMap = item.godownInitialStock && typeof item.godownInitialStock === 'object'
+        ? item.godownInitialStock
+        : {};
       const openingBags = isAll
         ? customOpening.bags !== undefined
           ? Number(customOpening.bags)
           : Number(item.initialStock) || 0
-        : 0;
+        : Number(godownMap[selectedGodown]) || 0;
       const openingRate = Number(item.purchasePrice) || Math.round(Number(item.price) * 0.85);
-      const openingValue = isAll
-        ? customOpening.value !== undefined
-          ? Number(customOpening.value)
-          : openingBags * openingRate
-        : 0;
+      const openingValue = openingBags * openingRate;
 
       // 2. Original Purchases for selected FY & selected Godown
       let purchasedBags = 0;

@@ -34,11 +34,15 @@ export default function ItemsScreen({
   const [price, setPrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [initialStock, setInitialStock] = useState('0');
+  const [godownStockInputs, setGodownStockInputs] = useState({});
+  const [newGodownInline, setNewGodownInline] = useState('');
+  const [isAddingGodownInline, setIsAddingGodownInline] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
   // Manual Stock Adjustment Modal state
   const [adjustingItem, setAdjustingItem] = useState(null);
+  const [adjustGodown, setAdjustGodown] = useState('ALL');
   const [adjustMode, setAdjustMode] = useState('set'); // 'set' | 'add' | 'sub'
   const [adjustQty, setAdjustQty] = useState('');
   const [adjustReason, setAdjustReason] = useState('Physical Stock Count');
@@ -49,6 +53,32 @@ export default function ItemsScreen({
     setTimeout(() => setToast(''), 3000);
   };
 
+  // All known godowns pool
+  const allKnownGodowns = useMemo(() => {
+    const list = ['கடை / பொது இருப்பு'];
+    const seen = new Set(['கடை / பொது இருப்பு']);
+    const pool = [
+      ...(Array.isArray(godowns) ? godowns : []),
+      ...Storage.getGodowns(),
+      ...(purchases || []).map((p) => p.godown),
+      ...Object.keys(godownStockInputs || {}),
+    ];
+    items.forEach((item) => {
+      if (item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+        Object.keys(item.godownInitialStock).forEach((g) => pool.push(g));
+      }
+    });
+    pool.forEach((g) => {
+      const clean = (g || '').trim();
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        list.push(clean);
+      }
+    });
+    return list;
+  }, [godowns, purchases, items, godownStockInputs]);
+
+  // Godown filter pills on top of Stock screen
   const availableGodowns = useMemo(() => {
     const list = [{ id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' }];
     const seen = new Set(['ALL']);
@@ -57,6 +87,13 @@ export default function ItemsScreen({
       ...Storage.getGodowns(),
       ...(purchases || []).map((p) => p.godown),
     ];
+    items.forEach((item) => {
+      if (item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+        Object.keys(item.godownInitialStock).forEach((g) => {
+          if (Number(item.godownInitialStock[g]) > 0) pool.push(g);
+        });
+      }
+    });
     pool.forEach((g) => {
       const clean = (g || '').trim();
       if (clean && !seen.has(clean)) {
@@ -65,21 +102,32 @@ export default function ItemsScreen({
       }
     });
     return list;
-  }, [godowns, purchases]);
+  }, [godowns, purchases, items]);
 
-  // Stock calculations per item
+  // Stock calculations per item (supports multi-godown initial stock & purchases)
   const itemStockStats = useMemo(() => {
     const stats = {};
     items.forEach((item) => {
-      const initial = Number(item.initialStock) || 0;
-      let purchased = 0;
+      const godownMap = item.godownInitialStock && typeof item.godownInitialStock === 'object'
+        ? item.godownInitialStock
+        : {};
+      const totalInitial = Number(item.initialStock) || 0;
+      
+      let godownInitial = 0;
+      if (selectedStockGodown === 'ALL') {
+        godownInitial = totalInitial;
+      } else {
+        godownInitial = Number(godownMap[selectedStockGodown]) || 0;
+      }
+
+      let totalPurchased = 0;
       let godownPurchased = 0;
       purchases.forEach((p) => {
         const pGodown = (p.godown || '').trim();
         (p.items || []).forEach((pi) => {
           if (pi.id === item.id) {
             const qty = Number(pi.qty) || 0;
-            purchased += qty;
+            totalPurchased += qty;
             if (selectedStockGodown === 'ALL' || pGodown === selectedStockGodown) {
               godownPurchased += qty;
             }
@@ -89,7 +137,6 @@ export default function ItemsScreen({
 
       let sold = 0;
       sales.forEach((s) => {
-        // ONLY Q-Sales reduce physical stock! Original GST Sales do not reduce physical stock
         const isQ = s.isQSale || s.billType === 'Q_SALE';
         if (isQ) {
           (s.items || []).forEach((si) => {
@@ -100,8 +147,18 @@ export default function ItemsScreen({
         }
       });
 
-      const current = initial + purchased - sold;
-      stats[item.id] = { initial, purchased, godownPurchased, sold, current };
+      const totalCurrent = totalInitial + totalPurchased - sold;
+      const godownTotal = godownInitial + godownPurchased;
+
+      stats[item.id] = {
+        initial: totalInitial,
+        purchased: totalPurchased,
+        godownInitial,
+        godownPurchased,
+        godownTotal,
+        sold,
+        current: totalCurrent,
+      };
     });
     return stats;
   }, [items, sales, purchases, selectedStockGodown]);
@@ -109,7 +166,7 @@ export default function ItemsScreen({
   const filteredItems = useMemo(() => {
     let list = items;
     if (selectedStockGodown !== 'ALL') {
-      list = list.filter((item) => (itemStockStats[item.id]?.godownPurchased || 0) > 0);
+      list = list.filter((item) => (itemStockStats[item.id]?.godownTotal || 0) > 0);
     }
     if (!search.trim()) return list;
     const q = search.toLowerCase();
@@ -123,6 +180,9 @@ export default function ItemsScreen({
     setPrice('');
     setPurchasePrice('');
     setInitialStock('0');
+    setGodownStockInputs({});
+    setIsAddingGodownInline(false);
+    setNewGodownInline('');
     setError('');
   };
 
@@ -133,6 +193,19 @@ export default function ItemsScreen({
     setPrice(String(item.price));
     setPurchasePrice(item.purchasePrice ? String(item.purchasePrice) : '');
     setInitialStock(item.initialStock !== undefined ? String(item.initialStock) : '0');
+    
+    // Populate existing godown initial stock
+    const initialMap = {};
+    if (item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+      Object.entries(item.godownInitialStock).forEach(([g, val]) => {
+        initialMap[g] = String(val);
+      });
+    } else if (Number(item.initialStock) > 0) {
+      initialMap['கடை / பொது இருப்பு'] = String(item.initialStock);
+    }
+    setGodownStockInputs(initialMap);
+    setIsAddingGodownInline(false);
+    setNewGodownInline('');
     setError('');
   };
 
@@ -155,7 +228,20 @@ export default function ItemsScreen({
     }
 
     const numPurchase = purchasePrice ? Number(purchasePrice) : Math.round(numPrice * 0.85);
-    const numInitialStock = Number(initialStock) || 0;
+
+    // Compute godown-wise initial stock
+    const cleanGodownMap = {};
+    let totalFromGodowns = 0;
+    Object.entries(godownStockInputs).forEach(([g, val]) => {
+      const cleanName = (g || '').trim();
+      const num = Number(val);
+      if (cleanName && !isNaN(num) && num > 0) {
+        cleanGodownMap[cleanName] = num;
+        totalFromGodowns += num;
+      }
+    });
+
+    const finalInitialStock = totalFromGodowns > 0 ? totalFromGodowns : (Number(initialStock) || 0);
 
     if (editingItem) {
       const updated = items.map((i) =>
@@ -165,22 +251,26 @@ export default function ItemsScreen({
               name: name.trim(),
               price: numPrice,
               purchasePrice: numPurchase,
-              initialStock: numInitialStock,
+              initialStock: finalInitialStock,
+              godownInitialStock: cleanGodownMap,
               unit: 'Bag',
             }
           : i
       );
       onSaveItems(updated);
+      showToast(`Updated: ${name.trim()} (${finalInitialStock} Bags)`);
     } else {
       const newItem = {
         id: `item-${Date.now()}`,
         name: name.trim(),
         price: numPrice,
         purchasePrice: numPurchase,
-        initialStock: numInitialStock,
+        initialStock: finalInitialStock,
+        godownInitialStock: cleanGodownMap,
         unit: 'Bag',
       };
       onSaveItems([...items, newItem]);
+      showToast(`Added: ${name.trim()} (${finalInitialStock} Bags)`);
     }
 
     handleCancel();
@@ -201,8 +291,18 @@ export default function ItemsScreen({
   // MANUAL STOCK ADJUSTMENT HANDLER
   const handleOpenAdjust = (item) => {
     setAdjustingItem(item);
-    const stats = itemStockStats[item.id] || { current: 0 };
-    setAdjustQty(String(stats.current));
+    const initialMap = item.godownInitialStock && typeof item.godownInitialStock === 'object'
+      ? item.godownInitialStock
+      : {};
+    const defaultGodown = selectedStockGodown !== 'ALL'
+      ? selectedStockGodown
+      : (Object.keys(initialMap)[0] || 'கடை / பொது இருப்பு');
+    setAdjustGodown(defaultGodown);
+    const stats = itemStockStats[item.id] || { current: 0, godownTotal: 0 };
+    const curQty = defaultGodown === 'ALL'
+      ? stats.current
+      : (stats.godownTotal || Number(initialMap[defaultGodown]) || 0);
+    setAdjustQty(String(curQty));
     setAdjustMode('set');
     setAdjustReason('Physical Stock Count');
   };
@@ -211,43 +311,48 @@ export default function ItemsScreen({
     e.preventDefault();
     if (!adjustingItem) return;
 
-    const stats = itemStockStats[adjustingItem.id] || { initial: 0, purchased: 0, sold: 0, current: 0 };
     const numQty = parseInt(adjustQty, 10);
-    if (isNaN(numQty)) {
+    if (isNaN(numQty) || numQty < 0) {
       alert('Please enter a valid quantity');
       return;
     }
 
-    let targetCurrentStock = stats.current;
-    if (adjustMode === 'set') {
-      targetCurrentStock = Math.max(0, numQty);
-    } else if (adjustMode === 'add') {
-      targetCurrentStock = stats.current + Math.max(0, numQty);
+    const currentMap = { ...(adjustingItem.godownInitialStock || {}) };
+    const targetGodown = adjustGodown === 'ALL' ? 'கடை / பொது இருப்பு' : adjustGodown;
+    const oldQty = Number(currentMap[targetGodown]) || 0;
+
+    let newGodownQty = numQty;
+    if (adjustMode === 'add') {
+      newGodownQty = oldQty + numQty;
     } else if (adjustMode === 'sub') {
-      targetCurrentStock = Math.max(0, stats.current - Math.max(0, numQty));
+      newGodownQty = Math.max(0, oldQty - numQty);
     }
 
-    // Calculate required initialStock so that initial + purchased - sold = targetCurrentStock
-    // initialStock = targetCurrentStock - purchased + sold
-    const newInitialStock = targetCurrentStock - stats.purchased + stats.sold;
+    currentMap[targetGodown] = newGodownQty;
+    let newTotalInitial = 0;
+    Object.values(currentMap).forEach((v) => {
+      newTotalInitial += Number(v) || 0;
+    });
 
     const updated = items.map((i) =>
       i.id === adjustingItem.id
         ? {
             ...i,
-            initialStock: newInitialStock,
+            initialStock: newTotalInitial,
+            godownInitialStock: currentMap,
             lastStockAdjustment: {
               date: new Date().toISOString(),
+              godown: targetGodown,
               reason: adjustReason,
-              oldStock: stats.current,
-              newStock: targetCurrentStock,
+              oldStock: oldQty,
+              newStock: newGodownQty,
             },
           }
         : i
     );
 
     onSaveItems(updated);
-    showToast(`Stock updated: ${adjustingItem.name} -> ${targetCurrentStock} Bag`);
+    showToast(`Stock updated in "${targetGodown}": ${adjustingItem.name} -> ${newGodownQty} Bags`);
     setAdjustingItem(null);
   };
 
@@ -450,34 +555,112 @@ export default function ItemsScreen({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                Initial Stock (In Shop)
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+              Cost / Purchase Price (₹ per Bag)
+            </label>
+            <input
+              type="number"
+              placeholder="Optional (e.g. ₹4000)"
+              value={purchasePrice}
+              onFocus={(e) => e.target.select()}
+              onChange={(e) => setPurchasePrice(e.target.value)}
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Godown Wise Initial Stock Section */}
+          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+                <Warehouse className="w-3.5 h-3.5 text-blue-600" />
+                <span>குடோன் வாரியான தொடக்க இருப்பு (Initial Stock by Godown)</span>
               </label>
-              <input
-                type="number"
-                placeholder="0"
-                value={initialStock}
-                onFocus={(e) => e.target.select()}
-                onChange={(e) => setInitialStock(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-[10px] text-slate-400">Total Bags</span>
+              <button
+                type="button"
+                onClick={() => setIsAddingGodownInline(true)}
+                className="text-[11px] font-bold text-blue-600 hover:underline flex items-center gap-0.5"
+              >
+                <Plus className="w-3 h-3" />
+                <span>+ புது குடோன்</span>
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                Cost / Purchase (₹)
-              </label>
-              <input
-                type="number"
-                placeholder="Optional"
-                value={purchasePrice}
-                onFocus={(e) => e.target.select()}
-                onChange={(e) => setPurchasePrice(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <span className="text-[10px] text-slate-400">Per Bag rate</span>
+            <p className="text-[11px] text-slate-500 leading-tight">
+              ஒரே பொருள் பல குடோன்களில் இருந்தால், எந்தெந்த குடோனில் எத்தனை மூட்டைகள் உள்ளன என்று உள்ளிடவும்:
+            </p>
+
+            {/* Inline add new godown box */}
+            {isAddingGodownInline && (
+              <div className="flex gap-1.5 items-center bg-white p-2 rounded-lg border border-blue-300 animate-in fade-in">
+                <input
+                  type="text"
+                  placeholder="புதிய குடோன் பெயர்..."
+                  value={newGodownInline}
+                  onChange={(e) => setNewGodownInline(e.target.value)}
+                  className="flex-1 px-2.5 py-1 text-xs border border-slate-200 rounded font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const clean = newGodownInline.trim();
+                    if (clean) {
+                      setGodownStockInputs((prev) => ({ ...prev, [clean]: '' }));
+                      setNewGodownInline('');
+                      setIsAddingGodownInline(false);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-blue-600 text-white rounded text-xs font-bold"
+                >
+                  சேர்
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingGodownInline(false);
+                    setNewGodownInline('');
+                  }}
+                  className="px-1.5 py-1 text-slate-400 text-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* List of all known godowns with inputs */}
+            <div className="space-y-1.5 max-h-44 overflow-y-auto">
+              {allKnownGodowns.map((g) => (
+                <div key={g} className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0 truncate">
+                    <Warehouse className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                    <span className="truncate">{g}</span>
+                  </span>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={godownStockInputs[g] ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setGodownStockInputs((prev) => ({
+                          ...prev,
+                          [g]: val,
+                        }));
+                      }}
+                      className="w-24 px-2 py-1 bg-slate-50 border border-slate-300 rounded text-xs font-black text-right text-blue-700 focus:outline-none focus:bg-white focus:ring-2 focus:ring-blue-500"
+                    />
+                    <span className="text-[11px] font-bold text-slate-500">Bags</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total Bags Display */}
+            <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs font-bold">
+              <span className="text-slate-600">மொத்த தொடக்க இருப்பு:</span>
+              <span className="text-xs font-black text-blue-800 bg-blue-100 px-2.5 py-0.5 rounded-full border border-blue-200">
+                {Object.values(godownStockInputs).reduce((sum, v) => sum + (Number(v) || 0), 0)} Bags (50kg)
+              </span>
             </div>
           </div>
 
@@ -641,15 +824,49 @@ export default function ItemsScreen({
               </button>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200">
-              <div className="text-xs text-slate-500">Item:</div>
-              <div className="font-black text-slate-900 text-sm mt-0.5">
-                {adjustingItem.name}
+            <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500">Item:</span>
+                <span className="font-black text-slate-900 text-sm">
+                  {adjustingItem.name}
+                </span>
               </div>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200 text-xs">
-                <span className="text-slate-500">Current Stock:</span>
+
+              {/* Godown Selector for Adjustment */}
+              <div className="pt-2 border-t border-slate-200">
+                <label className="block text-[11px] font-bold text-slate-600 mb-1 flex items-center gap-1">
+                  <Warehouse className="w-3.5 h-3.5 text-blue-600" />
+                  <span>மாற்ற வேண்டிய குடோன் (Select Godown):</span>
+                </label>
+                <select
+                  value={adjustGodown}
+                  onChange={(e) => {
+                    const g = e.target.value;
+                    setAdjustGodown(g);
+                    const initialMap = adjustingItem.godownInitialStock || {};
+                    const stats = itemStockStats[adjustingItem.id] || {};
+                    const cur = g === 'ALL'
+                      ? stats.current
+                      : (stats.godownTotal || Number(initialMap[g]) || 0);
+                    setAdjustQty(String(cur));
+                  }}
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="ALL">🌐 அனைத்து குடோன்கள் (All Stock)</option>
+                  {allKnownGodowns.map((g) => (
+                    <option key={g} value={g}>
+                      🏢 {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200 text-xs">
+                <span className="text-slate-500">தற்போதைய இருப்பு:</span>
                 <span className="font-black text-blue-600">
-                  {itemStockStats[adjustingItem.id]?.current || 0} Bag (50kg)
+                  {adjustGodown === 'ALL'
+                    ? `${itemStockStats[adjustingItem.id]?.current || 0} Bags (Total)`
+                    : `${itemStockStats[adjustingItem.id]?.godownTotal || (adjustingItem.godownInitialStock?.[adjustGodown] || 0)} Bags in ${adjustGodown}`}
                 </span>
               </div>
             </div>
