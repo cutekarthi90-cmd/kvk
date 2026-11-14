@@ -202,9 +202,15 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     });
   }, [items, gstSales, gstPurchases, openingValues, selectedGodown]);
 
+  // When a specific Godown is selected, show ONLY items that exist in that Godown
+  const displayedRows = useMemo(() => {
+    if (selectedGodown === 'ALL') return reportRows;
+    return reportRows.filter((r) => (r.purchasedBags || 0) > 0 || (r.remainingBags || 0) > 0);
+  }, [reportRows, selectedGodown]);
+
   // Overall Totals
   const totals = useMemo(() => {
-    return reportRows.reduce(
+    return displayedRows.reduce(
       (acc, row) => ({
         openingValue: acc.openingValue + row.openingValue,
         openingBags: acc.openingBags + row.openingBags,
@@ -226,7 +232,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         remainingBags: 0,
       }
     );
-  }, [reportRows]);
+  }, [displayedRows]);
 
   const handleStartEditOpening = () => {
     const temp = {};
@@ -271,7 +277,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       '"Remaining Stock Value (Rs.)"',
     ]);
 
-    reportRows.forEach((r, idx) => {
+    displayedRows.forEach((r, idx) => {
       rows.push([
         idx + 1,
         `"${r.name.replace(/"/g, '""')}"`,
@@ -528,7 +534,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         <div className="p-3 border-b border-slate-100 flex items-center justify-between">
           <div className="flex items-center gap-1.5 flex-wrap">
             <h4 className="font-black text-xs text-slate-800 uppercase tracking-wider">
-              Item-wise Stock Valuation ({reportRows.length} தானியங்கள்)
+              Item-wise Stock Valuation ({displayedRows.length} தானியங்கள்)
             </h4>
             {selectedGodown !== 'ALL' && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
@@ -539,46 +545,58 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         </div>
 
         <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-          {reportRows.map((r) => (
-            <div key={r.id} className="p-3 space-y-2 hover:bg-slate-50/70 transition-colors">
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="font-black text-slate-900 text-xs">{r.name}</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">
-                    Rate: ₹{r.purchasePrice} / Bag
-                  </span>
-                </div>
-
-                <div className="text-right">
-                  <span className="font-black text-amber-800 text-xs block">
-                    Rem: {formatCurrency(r.remainingValue)}
-                  </span>
-                  <span className="text-[11px] font-bold text-slate-600">
-                    {r.remainingBags} Bags (50kg)
-                  </span>
-                </div>
-              </div>
-
-              {/* 3 Step Breakdown: Op + In - Out */}
-              <div className="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-2 rounded-lg text-center">
-                <div>
-                  <span className="text-slate-400 font-bold block">Opening</span>
-                  <span className="font-extrabold text-slate-800">{r.openingBags} Bag</span>
-                  <span className="text-slate-500 block">₹{Math.round(r.openingValue)}</span>
-                </div>
-                <div>
-                  <span className="text-blue-500 font-bold block">+ Purchase</span>
-                  <span className="font-extrabold text-blue-700">+{r.purchasedBags} Bag</span>
-                  <span className="text-blue-600 block">₹{Math.round(r.purchasedValue)}</span>
-                </div>
-                <div>
-                  <span className="text-emerald-500 font-bold block">- Sales</span>
-                  <span className="font-extrabold text-emerald-700">-{r.soldBags} Bag</span>
-                  <span className="text-emerald-600 block">₹{Math.round(r.soldValue)}</span>
-                </div>
-              </div>
+          {displayedRows.length === 0 ? (
+            <div className="p-8 text-center space-y-2">
+              <Warehouse className="w-8 h-8 text-slate-300 mx-auto" />
+              <p className="text-xs font-bold text-slate-600">
+                இந்த குடோனில் ({selectedGodown}) சரக்கு இருப்பு எதுவும் இல்லை.
+              </p>
+              <p className="text-[11px] text-slate-400">
+                Purchase பில் போடும் போது இந்த குடோனைத் தேர்ந்தெடுத்தால் இங்கே காட்டும்.
+              </p>
             </div>
-          ))}
+          ) : (
+            displayedRows.map((r) => (
+              <div key={r.id} className="p-3 space-y-2 hover:bg-slate-50/70 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <span className="font-black text-slate-900 text-xs">{r.name}</span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      Rate: ₹{r.purchasePrice} / Bag
+                    </span>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="font-black text-amber-800 text-xs block">
+                      Rem: {formatCurrency(r.remainingValue)}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-600">
+                      {r.remainingBags} Bags (50kg)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3 Step Breakdown: Op + In - Out */}
+                <div className="grid grid-cols-3 gap-1.5 text-[10px] bg-slate-50 p-2 rounded-lg text-center">
+                  <div>
+                    <span className="text-slate-400 font-bold block">Opening</span>
+                    <span className="font-extrabold text-slate-800">{r.openingBags} Bag</span>
+                    <span className="text-slate-500 block">₹{Math.round(r.openingValue)}</span>
+                  </div>
+                  <div>
+                    <span className="text-blue-500 font-bold block">+ Purchase</span>
+                    <span className="font-extrabold text-blue-700">+{r.purchasedBags} Bag</span>
+                    <span className="text-blue-600 block">₹{Math.round(r.purchasedValue)}</span>
+                  </div>
+                  <div>
+                    <span className="text-emerald-500 font-bold block">- Sales</span>
+                    <span className="font-extrabold text-emerald-700">-{r.soldBags} Bag</span>
+                    <span className="text-emerald-600 block">₹{Math.round(r.soldValue)}</span>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
 

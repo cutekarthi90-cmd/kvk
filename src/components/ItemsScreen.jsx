@@ -107,10 +107,14 @@ export default function ItemsScreen({
   }, [items, sales, purchases, selectedStockGodown]);
 
   const filteredItems = useMemo(() => {
-    if (!search.trim()) return items;
+    let list = items;
+    if (selectedStockGodown !== 'ALL') {
+      list = list.filter((item) => (itemStockStats[item.id]?.godownPurchased || 0) > 0);
+    }
+    if (!search.trim()) return list;
     const q = search.toLowerCase();
-    return items.filter((i) => i.name.toLowerCase().includes(q));
-  }, [items, search]);
+    return list.filter((i) => i.name.toLowerCase().includes(q));
+  }, [items, selectedStockGodown, itemStockStats, search]);
 
   const handleStartAdd = () => {
     setIsAdding(true);
@@ -566,20 +570,22 @@ export default function ItemsScreen({
                     ) : (
                       <Layers className="w-3 h-3" />
                     )}
-                    {stats.current} Bag
+                    {selectedStockGodown !== 'ALL' ? stats.godownPurchased : stats.current} Bag
                   </span>
 
                   {selectedStockGodown !== 'ALL' && (
                     <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
                       <Warehouse className="w-3 h-3 text-blue-500" />
-                      <span>{selectedStockGodown}: {stats.godownPurchased} Bags</span>
+                      <span>{selectedStockGodown} இருப்பு</span>
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
-                    In: {stats.initial + stats.purchased} | Out: {stats.sold}
+                    {selectedStockGodown !== 'ALL'
+                      ? `குடோன் கொள்முதல்: ${stats.godownPurchased} Bags`
+                      : `In: ${stats.initial + stats.purchased} | Out: ${stats.sold}`}
                   </span>
 
                   {/* Manual Stock Adjustment Button */}
@@ -601,7 +607,11 @@ export default function ItemsScreen({
         {filteredItems.length === 0 && (
           <div className="text-center py-8 bg-white rounded-xl border border-dashed border-slate-300 p-4">
             <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-500">No items match your search.</p>
+            <p className="text-xs font-bold text-slate-600">
+              {selectedStockGodown !== 'ALL'
+                ? `இந்த குடோனில் (${selectedStockGodown}) சரக்கு இருப்பு எதுவும் இல்லை.`
+                : 'No items match your search.'}
+            </p>
           </div>
         )}
       </div>
