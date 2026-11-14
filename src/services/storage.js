@@ -1768,6 +1768,9 @@ export const Storage = {
   // Guarantees phone's active data is never wiped by an ephemeral waking server!
   mergeSafeServerData: (serverData) => {
     if (!serverData) return null;
+    if (Array.isArray(serverData.deletedIds)) {
+      serverData.deletedIds.forEach((id) => Storage.recordDeletedId(id));
+    }
     const deleted = Storage.getDeletedIds();
 
     const mergeById = (localList, serverList) => {

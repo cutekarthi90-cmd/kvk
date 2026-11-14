@@ -250,7 +250,7 @@ export default function App() {
   // Sales handlers
   const handleSaveSale = (newSale) => {
     setSales((prev) => {
-      const updated = [newSale, ...prev];
+      const updated = [newSale, ...prev.filter((s) => s.id !== newSale.id)];
       Storage.saveSales(updated);
       return updated;
     });
@@ -270,7 +270,7 @@ export default function App() {
   // Receipts handlers
   const handleSaveReceipt = (newReceipt) => {
     setReceipts((prev) => {
-      const updated = [newReceipt, ...prev];
+      const updated = [newReceipt, ...prev.filter((r) => r.id !== newReceipt.id)];
       Storage.saveReceipts(updated);
       return updated;
     });
@@ -290,7 +290,7 @@ export default function App() {
   // Purchase handlers
   const handleSavePurchase = (newPurchase) => {
     setPurchases((prev) => {
-      const updated = [newPurchase, ...prev];
+      const updated = [newPurchase, ...prev.filter((p) => p.id !== newPurchase.id)];
       Storage.savePurchases(updated);
       return updated;
     });

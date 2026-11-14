@@ -1075,6 +1075,24 @@
   ],
   "sales": [
     {
+      "id": "test-sync-qsale-1",
+      "invoiceNo": "TEST-Q1",
+      "customerName": "Test Cust",
+      "grandTotal": 600,
+      "isQSale": true,
+      "billType": "Q_SALE",
+      "date": "2026-11-14"
+    },
+    {
+      "id": "test-sync-sale-1",
+      "invoiceNo": "TEST-1",
+      "customerName": "Test Cust",
+      "grandTotal": 500,
+      "isQSale": false,
+      "billType": "GST_BILL",
+      "date": "2026-11-14"
+    },
+    {
       "id": "v-sale",
       "test": true
     },
@@ -1137,11 +1155,36 @@
   ],
   "receipts": [
     {
+      "id": "test-sync-rcpt-1",
+      "receiptNo": "RCPT-1",
+      "customerName": "Test Cust",
+      "amount": 500,
+      "date": "2026-11-14"
+    },
+    {
       "id": "v-rcpt",
       "test": true
     }
   ],
   "purchases": [
+    {
+      "id": "test-sync-qpur-1",
+      "billNo": "QPUR-TEST-1",
+      "supplierName": "Test Supplier",
+      "grandTotal": 1500,
+      "isQPurchase": true,
+      "billType": "Q_PURCHASE",
+      "date": "2026-11-14"
+    },
+    {
+      "id": "test-sync-pur-1",
+      "billNo": "PUR-TEST-1",
+      "supplierName": "Test Supplier",
+      "grandTotal": 1200,
+      "isQPurchase": false,
+      "billType": "GST_BILL",
+      "date": "2026-11-14"
+    },
     {
       "id": "v-pur",
       "test": true,
@@ -1181,7 +1224,7 @@
       "createdAt": "2026-11-05T12:42:22.135Z"
     }
   ],
-  "lastUpdated": "2026-11-13T09:23:26.621Z",
+  "lastUpdated": "2026-11-14T09:23:35.312Z",
   "suppliers": [
     {
       "id": "sup-1793803586539",
@@ -1201,6 +1244,13 @@
   ],
   "supplierPayments": [],
   "salesReturns": [
+    {
+      "id": "test-sync-ret-1",
+      "returnNo": "RET-1",
+      "customerName": "Test Cust",
+      "totalAmount": 200,
+      "date": "2026-11-14"
+    },
     {
       "id": "v-ret",
       "test": true
@@ -1236,6 +1286,13 @@
   ],
   "expenses": [
     {
+      "id": "test-sync-exp-1",
+      "category": "Kooli",
+      "amount": 350,
+      "description": "Test Kooli",
+      "date": "2026-11-14"
+    },
+    {
       "id": "v-exp",
       "test": true
     },
@@ -1258,6 +1315,13 @@
   ],
   "interestLoans": [
     {
+      "id": "test-sync-loan-1",
+      "borrowerName": "Test Borrower",
+      "principal": 10000,
+      "monthlyRate": 1.5,
+      "date": "2026-11-14"
+    },
+    {
       "id": "v-loan",
       "test": true
     },
@@ -1269,6 +1333,12 @@
     }
   ],
   "interestPayments": [
+    {
+      "id": "test-sync-pay-1",
+      "loanId": "test-sync-loan-1",
+      "amount": 150,
+      "date": "2026-11-14"
+    },
     {
       "id": "v-pay",
       "test": true

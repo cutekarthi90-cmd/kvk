@@ -1311,7 +1311,7 @@ const readDB = () => {
 
 const writeDB = (data) => {
   try {
-    data.lastUpdated = new Date().toISOString();
+    data.lastUpdated = new Date().toISOString() + '_' + Math.random().toString(36).slice(2, 7);
     fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf-8');
   } catch (err) {
     console.error('Error writing db:', err);
