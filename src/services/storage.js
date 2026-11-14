@@ -1399,13 +1399,21 @@ export const Storage = {
   getGodowns: () => {
     try {
       const data = localStorage.getItem('quickbill_godowns');
-      return data ? JSON.parse(data) : [];
+      if (data) {
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      // Fallback: collect any godowns previously saved in purchase bills
+      const purchases = Storage.getPurchases();
+      const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
+      return Array.from(new Set(fromPurchases));
     } catch {
       return [];
     }
   },
   saveGodowns: (godowns) => {
-    localStorage.setItem('quickbill_godowns', JSON.stringify(godowns || []));
+    const cleanList = Array.from(new Set((godowns || []).map((g) => (g || '').trim()).filter(Boolean)));
+    localStorage.setItem('quickbill_godowns', JSON.stringify(cleanList));
     Storage.touchModified();
   },
 

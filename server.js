@@ -1282,7 +1282,8 @@ const DEFAULT_DB = {
     }
   ],
   "interestLoans": [],
-  "interestPayments": []
+  "interestPayments": [],
+  "godowns": []
 };
 
 const readDB = () => {
@@ -1295,6 +1296,10 @@ const readDB = () => {
     const parsed = JSON.parse(content);
     if (!Array.isArray(parsed.deletedIds)) {
       parsed.deletedIds = [];
+    }
+    if (!Array.isArray(parsed.godowns)) {
+      const fromPurchases = (parsed.purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
+      parsed.godowns = Array.from(new Set(fromPurchases));
     }
     if (Array.isArray(parsed.items)) {
       const delSet = new Set(parsed.deletedIds || []);

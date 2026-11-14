@@ -17,7 +17,7 @@ import {
 import { formatCurrency, formatDate } from '../services/pdfService';
 import { Storage, getFinancialYear } from '../services/storage';
 
-export default function StockReportScreen({ items = [], sales = [], purchases = [] }) {
+export default function StockReportScreen({ items = [], sales = [], purchases = [], godowns = [] }) {
   const [selectedFY, setSelectedFY] = useState(() => getFinancialYear());
   const [selectedGodown, setSelectedGodown] = useState('ALL');
   const [openingValues, setOpeningValues] = useState(() => {
@@ -54,23 +54,20 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
       { id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' },
     ];
     const seen = new Set(['ALL']);
-    const saved = Storage.getGodowns();
-    saved.forEach((g) => {
+    const pool = [
+      ...(Array.isArray(godowns) ? godowns : []),
+      ...Storage.getGodowns(),
+      ...(purchases || []).map((p) => p.godown),
+    ];
+    pool.forEach((g) => {
       const clean = (g || '').trim();
       if (clean && !seen.has(clean)) {
         seen.add(clean);
         list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
       }
     });
-    purchases.forEach((p) => {
-      const clean = (p.godown || '').trim();
-      if (clean && !seen.has(clean)) {
-        seen.add(clean);
-        list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
-      }
-    });
     return list;
-  }, [purchases]);
+  }, [godowns, purchases]);
 
   // Filter ONLY Original GST Bills (excluding Q-Sales & Q-Purchases)
   const gstSales = useMemo(() => {
@@ -380,77 +377,83 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
         </div>
       </div>
 
-      {/* Godown Wise Filter Bar (Shown only when user has added godowns) */}
-      {availableGodowns.length > 1 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <Warehouse className="w-4 h-4 text-blue-600" />
-              <span className="text-xs font-black text-slate-800">குடோன் வாரியான இருப்பு (Godown Wise Filter)</span>
-            </div>
-            {selectedGodown !== 'ALL' && (
-              <button
-                type="button"
-                onClick={() => setSelectedGodown('ALL')}
-                className="text-[10px] font-bold text-blue-600 hover:underline"
-              >
-                அனைத்தும் காட்டு (Show All)
-              </button>
-            )}
+      {/* Godown Wise Filter Bar */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <Warehouse className="w-4 h-4 text-blue-600" />
+            <span className="text-xs font-black text-slate-800">குடோன் வாரியான இருப்பு (Godown Wise Filter)</span>
           </div>
-
-          {/* Horizontal Godown Filter Pills */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-            {availableGodowns.map((g) => {
-              const isActive = selectedGodown === g.id;
-              return (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => setSelectedGodown(g.id)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all flex items-center gap-1 ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
-                  }`}
-                >
-                  <span>{g.short}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Mini Godown Summary Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
-            {godownBreakdown.map((gb) => {
-              const isSelected = selectedGodown === gb.id;
-              return (
-                <button
-                  key={gb.id}
-                  type="button"
-                  onClick={() => setSelectedGodown(gb.id)}
-                  className={`p-2 rounded-lg text-left transition-all border ${
-                    isSelected
-                      ? 'bg-blue-50 border-blue-400 shadow-2xs'
-                      : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-extrabold text-slate-700 truncate">{gb.short}</span>
-                    <span className="text-[9px] font-bold text-slate-400">{gb.billCount} bills</span>
-                  </div>
-                  <div className="text-xs font-black text-slate-900 mt-0.5">
-                    {gb.purchasedBags} Bags
-                  </div>
-                  <div className="text-[10px] font-semibold text-blue-700">
-                    {formatCurrency(gb.purchasedValue)}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          {selectedGodown !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => setSelectedGodown('ALL')}
+              className="text-[10px] font-bold text-blue-600 hover:underline"
+            >
+              அனைத்தும் காட்டு (Show All)
+            </button>
+          )}
         </div>
-      )}
+
+        {availableGodowns.length > 1 ? (
+          <>
+            {/* Horizontal Godown Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {availableGodowns.map((g) => {
+                const isActive = selectedGodown === g.id;
+                return (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => setSelectedGodown(g.id)}
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all flex items-center gap-1 ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
+                    }`}
+                  >
+                    <span>{g.short}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mini Godown Summary Badges */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pt-1">
+              {godownBreakdown.map((gb) => {
+                const isSelected = selectedGodown === gb.id;
+                return (
+                  <button
+                    key={gb.id}
+                    type="button"
+                    onClick={() => setSelectedGodown(gb.id)}
+                    className={`p-2 rounded-lg text-left transition-all border ${
+                      isSelected
+                        ? 'bg-blue-50 border-blue-400 shadow-2xs'
+                        : 'bg-slate-50/70 hover:bg-slate-100/80 border-slate-200'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-extrabold text-slate-700 truncate">{gb.short}</span>
+                      <span className="text-[9px] font-bold text-slate-400">{gb.billCount} bills</span>
+                    </div>
+                    <div className="text-xs font-black text-slate-900 mt-0.5">
+                      {gb.purchasedBags} Bags
+                    </div>
+                    <div className="text-[10px] font-semibold text-blue-700">
+                      {formatCurrency(gb.purchasedValue)}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="p-2.5 bg-slate-50 rounded-lg text-xs text-slate-500">
+            Purchase பில் போடும் போது குடோன் பெயரை உள்ளிட்டால், அந்தந்த குடோன் வாரியான இருப்பு (Bags & Value) இங்கே தனித்தனியாகக் காட்டும்.
+          </div>
+        )}
+      </div>
 
       {/* High-Level Financial Stock Dashboard */}
       <div className="grid grid-cols-2 gap-2 text-xs">

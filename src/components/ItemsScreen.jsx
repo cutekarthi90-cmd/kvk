@@ -11,14 +11,23 @@ import {
   Layers,
   Sliders,
   ArrowRight,
-  TrendingUp
+  TrendingUp,
+  Warehouse
 } from 'lucide-react';
 import { formatCurrency } from '../services/pdfService';
 import { Storage } from '../services/storage';
 import StockReportScreen from './StockReportScreen';
 
-export default function ItemsScreen({ items = [], sales = [], purchases = [], onSaveItems, onDeleteItem }) {
+export default function ItemsScreen({
+  items = [],
+  sales = [],
+  purchases = [],
+  godowns = [],
+  onSaveItems,
+  onDeleteItem
+}) {
   const [activeSubTab, setActiveSubTab] = useState('stock'); // 'stock' | 'report'
+  const [selectedStockGodown, setSelectedStockGodown] = useState('ALL');
   const [editingItem, setEditingItem] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
@@ -40,16 +49,40 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
     setTimeout(() => setToast(''), 3000);
   };
 
+  const availableGodowns = useMemo(() => {
+    const list = [{ id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' }];
+    const seen = new Set(['ALL']);
+    const pool = [
+      ...(Array.isArray(godowns) ? godowns : []),
+      ...Storage.getGodowns(),
+      ...(purchases || []).map((p) => p.godown),
+    ];
+    pool.forEach((g) => {
+      const clean = (g || '').trim();
+      if (clean && !seen.has(clean)) {
+        seen.add(clean);
+        list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
+      }
+    });
+    return list;
+  }, [godowns, purchases]);
+
   // Stock calculations per item
   const itemStockStats = useMemo(() => {
     const stats = {};
     items.forEach((item) => {
       const initial = Number(item.initialStock) || 0;
       let purchased = 0;
+      let godownPurchased = 0;
       purchases.forEach((p) => {
+        const pGodown = (p.godown || '').trim();
         (p.items || []).forEach((pi) => {
           if (pi.id === item.id) {
-            purchased += Number(pi.qty) || 0;
+            const qty = Number(pi.qty) || 0;
+            purchased += qty;
+            if (selectedStockGodown === 'ALL' || pGodown === selectedStockGodown) {
+              godownPurchased += qty;
+            }
           }
         });
       });
@@ -68,10 +101,10 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
       });
 
       const current = initial + purchased - sold;
-      stats[item.id] = { initial, purchased, sold, current };
+      stats[item.id] = { initial, purchased, godownPurchased, sold, current };
     });
     return stats;
-  }, [items, sales, purchases]);
+  }, [items, sales, purchases, selectedStockGodown]);
 
   const filteredItems = useMemo(() => {
     if (!search.trim()) return items;
@@ -282,6 +315,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
           items={items}
           sales={sales}
           purchases={purchases}
+          godowns={godowns}
         />
       )}
 
@@ -295,6 +329,46 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
               Purchases (+Stock) • Q-Sales (-Stock) • Original Bills do NOT reduce
             </span>
           </div>
+
+          {/* Godown Wise Filter Bar for Physical Stock */}
+          {availableGodowns.length > 1 && (
+            <div className="bg-white rounded-xl p-2.5 border border-slate-200 shadow-2xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                  <Warehouse className="w-3.5 h-3.5 text-blue-600" />
+                  குடோன் வாரியான இருப்பு (Godown Filter):
+                </span>
+                {selectedStockGodown !== 'ALL' && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStockGodown('ALL')}
+                    className="text-[10px] text-blue-600 font-bold hover:underline"
+                  >
+                    அனைத்தும் (Show All)
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                {availableGodowns.map((g) => {
+                  const isActive = selectedStockGodown === g.id;
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      onClick={() => setSelectedStockGodown(g.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {g.short}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Search Bar */}
           <div className="relative">
@@ -476,7 +550,7 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
 
               {/* Stock Status Bar + Manual Adjustment Button */}
               <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-[11px] text-slate-500 font-medium">Stock:</span>
                   <span
                     className={`px-2 py-0.5 rounded-md font-extrabold text-xs flex items-center gap-1 ${
@@ -494,6 +568,13 @@ export default function ItemsScreen({ items = [], sales = [], purchases = [], on
                     )}
                     {stats.current} Bag
                   </span>
+
+                  {selectedStockGodown !== 'ALL' && (
+                    <span className="px-2 py-0.5 rounded-md font-bold text-[11px] bg-blue-50 text-blue-700 border border-blue-200 flex items-center gap-1">
+                      <Warehouse className="w-3 h-3 text-blue-500" />
+                      <span>{selectedStockGodown}: {stats.godownPurchased} Bags</span>
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">

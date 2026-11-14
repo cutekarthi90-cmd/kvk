@@ -26,6 +26,7 @@ export default function App() {
   const [expenses, setExpenses] = useState(() => Storage.getExpenses());
   const [interestLoans, setInterestLoans] = useState(() => Storage.getInterestLoans());
   const [interestPayments, setInterestPayments] = useState(() => Storage.getInterestPayments());
+  const [godowns, setGodowns] = useState(() => Storage.getGodowns());
 
   const [syncStatus, setSyncStatus] = useState('connecting');
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -142,6 +143,7 @@ export default function App() {
           Storage.saveInterestPayments(merged.interestPayments);
         }
         if (Array.isArray(merged.godowns)) {
+          setGodowns(merged.godowns);
           Storage.saveGodowns(merged.godowns);
         }
       },
@@ -185,6 +187,14 @@ export default function App() {
     setSales(Storage.getSales());
     setReceipts(Storage.getReceipts());
     setPurchases(Storage.getPurchases());
+    setGodowns(Storage.getGodowns());
+  };
+
+  const handleSaveGodowns = (newGodowns) => {
+    const cleanList = Array.from(new Set((newGodowns || []).map((g) => (g || '').trim()).filter(Boolean)));
+    setGodowns(cleanList);
+    Storage.saveGodowns(cleanList);
+    SyncService.dispatch('SAVE_GODOWNS', cleanList);
   };
 
   const handleSaveShop = (newShop) => {
@@ -471,9 +481,11 @@ export default function App() {
             items={items}
             purchases={purchases}
             suppliers={suppliers}
+            godowns={godowns}
             onSavePurchase={handleSavePurchase}
             onDeletePurchase={handleDeletePurchase}
             onSaveSuppliers={handleSaveSuppliers}
+            onSaveGodowns={handleSaveGodowns}
           />
         )}
 
@@ -510,6 +522,7 @@ export default function App() {
             items={items}
             sales={sales}
             purchases={purchases}
+            godowns={godowns}
             onSaveItems={handleSaveItems}
             onDeleteItem={handleDeleteItem}
           />
