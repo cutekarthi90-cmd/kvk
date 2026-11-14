@@ -54,6 +54,7 @@ export default function SaleScreen({
   const [toast, setToast] = useState('');
   const [customInvoiceNo, setCustomInvoiceNo] = useState('');
   const [lastSavedBill, setLastSavedBill] = useState(null); // for post-save popup
+  const [selectedPastBill, setSelectedPastBill] = useState(null); // for viewing past bill details
 
   useEffect(() => {
     if (preselectedCustomerId) {
@@ -410,20 +411,12 @@ export default function SaleScreen({
       paidAmount: paymentStatus === 'PAID' ? grandTotal : paidAmount,
     };
 
-    if (sale.items.length === 0) {
+    if (!sale || !Array.isArray(sale.items) || sale.items.length === 0) {
       showToast('Add items to preview bill');
       return;
     }
 
-    const customer = customers.find((c) => c.id === sale.customerId) || {
-      name: 'Preview Customer',
-      phone: '9840123456',
-    };
-
-    const doc = generateSaleInvoicePDF(sale, customer, shop);
-    const pdfBlob = doc.output('blob');
-    const blobUrl = URL.createObjectURL(pdfBlob);
-    window.open(blobUrl, '_blank');
+    setSelectedPastBill(sale);
   };
 
   const handleDeleteSaleItem = (sale) => {
@@ -739,7 +732,12 @@ export default function SaleScreen({
             </div>
           ) : (
             sortedSalesHistory.map((sale) => {
+              if (!sale) return null;
               const isQ = sale.isQSale || sale.billType === 'Q_SALE';
+              const itemsList = Array.isArray(sale.items) ? sale.items : [];
+              const disc = Number(sale.discount) || 0;
+              const grand = Number(sale.grandTotal) || 0;
+
               return (
               <div
                 key={sale.id}
@@ -749,7 +747,13 @@ export default function SaleScreen({
                   <div>
                     <div className="flex items-center gap-2">
                       <span className={`font-black text-base ${isQ ? 'text-purple-900' : 'text-slate-900'}`}>
-                        {String(sale.invoiceNo).startsWith('Q-') ? sale.invoiceNo : (isQ ? `Q-${sale.invoiceNo}` : (String(sale.invoiceNo).startsWith('KVK') ? sale.invoiceNo : `KVK ${sale.invoiceNo}`))}
+                        {String(sale.invoiceNo || '1').startsWith('Q-')
+                          ? sale.invoiceNo
+                          : (isQ
+                              ? `Q-${sale.invoiceNo || '1'}`
+                              : (String(sale.invoiceNo || '1').startsWith('KVK')
+                                  ? sale.invoiceNo
+                                  : `KVK ${sale.invoiceNo || '1'}`))}
                       </span>
                       {isQ && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-purple-100 text-purple-800 border border-purple-200">
@@ -763,27 +767,29 @@ export default function SaleScreen({
                             : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        {sale.paymentStatus}
+                        {sale.paymentStatus || 'PAID'}
                       </span>
                     </div>
                     <div className="text-xs font-bold text-slate-700 mt-0.5">
-                      {sale.customerName} • {sale.customerPhone}
+                      {sale.customerName || 'Customer'} {sale.customerPhone ? `• ${sale.customerPhone}` : ''}
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5">
-                      {sale.items.length} items ({sale.items.map((i) => i.name).slice(0, 2).join(', ')}...)
+                      {itemsList.length} items ({itemsList.map((i) => i?.name || '').filter(Boolean).slice(0, 2).join(', ')}{itemsList.length > 2 ? '...' : ''})
                     </div>
                   </div>
 
                   <div className="text-right shrink-0">
                     <div className="font-black text-blue-600 text-base">
-                      {formatCurrency(sale.grandTotal)}
+                      {formatCurrency(grand)}
                     </div>
-                    {Number(sale.discount) > 0 && (
+                    {disc > 0 && (
                       <div className="text-[10px] text-amber-700 font-bold">
-                        தள்ளுபடி: -{formatCurrency(Number(sale.discount))}
+                        தள்ளுபடி: -{formatCurrency(disc)}
                       </div>
                     )}
-                    <div className="text-[11px] text-slate-400 font-medium">{formatDate(sale.date)}</div>
+                    <div className="text-[11px] text-slate-400 font-medium">
+                      {sale.date ? formatDate(sale.date) : ''}
+                    </div>
                   </div>
                 </div>
 
@@ -800,7 +806,7 @@ export default function SaleScreen({
 
                   <div className="flex gap-1.5">
                     <button
-                      onClick={() => handlePreviewPdf(sale)}
+                      onClick={() => setSelectedPastBill(sale)}
                       className="px-2.5 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-200 flex items-center gap-1"
                     >
                       <Eye className="w-3.5 h-3.5" />
@@ -830,6 +836,122 @@ export default function SaleScreen({
         )}
       </div>
     )}
+
+      {/* VIEW PAST BILL DETAILS MODAL */}
+      {selectedPastBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3">
+          <div className="bg-white rounded-2xl p-4 max-w-sm w-full shadow-2xl space-y-3 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div>
+                <h3 className="font-black text-slate-900 text-base">
+                  {String(selectedPastBill.invoiceNo || '1').startsWith('Q-')
+                    ? selectedPastBill.invoiceNo
+                    : (selectedPastBill.isQSale || selectedPastBill.billType === 'Q_SALE')
+                    ? `Q-${selectedPastBill.invoiceNo || '1'}`
+                    : (String(selectedPastBill.invoiceNo || '1').startsWith('KVK')
+                        ? selectedPastBill.invoiceNo
+                        : `KVK ${selectedPastBill.invoiceNo || '1'}`)}
+                </h3>
+                <span className="text-[11px] text-slate-400 font-semibold">
+                  {selectedPastBill.date ? formatDate(selectedPastBill.date) : ''}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPastBill(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Customer Info */}
+            <div className="p-2.5 bg-slate-50 rounded-xl space-y-1 text-xs">
+              <div className="font-extrabold text-slate-800">
+                Customer: {selectedPastBill.customerName || 'Customer'}
+              </div>
+              {selectedPastBill.customerPhone && (
+                <div className="text-slate-500 font-medium">
+                  Phone: {selectedPastBill.customerPhone}
+                </div>
+              )}
+            </div>
+
+            {/* Items List */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Items Billed ({(selectedPastBill.items || []).length})
+              </span>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {(selectedPastBill.items || []).map((item, idx) => (
+                  <div key={idx} className="p-2 flex items-center justify-between text-xs bg-white">
+                    <div>
+                      <span className="font-bold text-slate-800 block">{item.name}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {item.qty} Bag @ ₹{item.price}
+                      </span>
+                    </div>
+                    <span className="font-black text-slate-900">
+                      ₹{((Number(item.qty) || 0) * (Number(item.price) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Totals Breakdown */}
+            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 space-y-1 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal:</span>
+                <span className="font-bold">₹{Number(selectedPastBill.subTotal || selectedPastBill.grandTotal).toFixed(2)}</span>
+              </div>
+              {Number(selectedPastBill.discount) > 0 && (
+                <div className="flex justify-between text-emerald-700 font-bold">
+                  <span>- Discount (தள்ளுபடி):</span>
+                  <span>₹{Number(selectedPastBill.discount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-black text-blue-900 pt-1 border-t border-blue-200">
+                <span>Net Total:</span>
+                <span>{formatCurrency(selectedPastBill.grandTotal)}</span>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  handleShareWhatsApp(selectedPastBill);
+                  setSelectedPastBill(null);
+                }}
+                className="py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>WhatsApp</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDownloadPdf(selectedPastBill);
+                }}
+                className="py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-xs"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Download PDF</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedPastBill(null)}
+              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* VIEW 2: CREATE BILL FORM */}
       {activeView === 'create' && (

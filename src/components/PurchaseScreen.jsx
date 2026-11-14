@@ -24,9 +24,9 @@ import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
 
 export default function PurchaseScreen({
-  items,
-  purchases,
-  suppliers: externalSuppliers,
+  items = [],
+  purchases = [],
+  suppliers: externalSuppliers = [],
   onSavePurchase,
   onDeletePurchase,
   onSaveSuppliers,
@@ -44,7 +44,7 @@ export default function PurchaseScreen({
   const [customBillNo, setCustomBillNo] = useState('');
   const [godownsList, setGodownsList] = useState(() => {
     const saved = Storage.getGodowns();
-    const fromPurchases = purchases.map((p) => (p.godown || '').trim()).filter(Boolean);
+    const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
     const set = new Set([...saved, ...fromPurchases]);
     return Array.from(set);
   });
@@ -60,6 +60,7 @@ export default function PurchaseScreen({
   const [paymentStatus, setPaymentStatus] = useState('PAID');
   const [notes, setNotes] = useState('');
   const [historySearch, setHistorySearch] = useState('');
+  const [selectedPurchaseBill, setSelectedPurchaseBill] = useState(null);
   const [toast, setToast] = useState('');
 
   // Suppliers master state
@@ -68,8 +69,8 @@ export default function PurchaseScreen({
   const [isAddingNewSupplier, setIsAddingNewSupplier] = useState(false);
 
   const autoBillNo = useMemo(() => {
-    return String(purchases.length + 1);
-  }, [purchases.length]);
+    return String((purchases || []).length + 1);
+  }, [purchases]);
 
   const billNo = customBillNo || autoBillNo;
 
@@ -278,21 +279,22 @@ export default function PurchaseScreen({
 
   // Past purchases sorted strictly DESCENDING (newest first)
   const sortedPurchases = useMemo(() => {
-    const list = purchases.filter((p) => {
+    const list = (purchases || []).filter((p) => {
+      if (!p) return false;
       if (!historySearch.trim()) return true;
       const q = historySearch.toLowerCase();
       return (
-        String(p.billNo).toLowerCase().includes(q) ||
+        String(p.billNo || '').toLowerCase().includes(q) ||
         (p.supplierName && p.supplierName.toLowerCase().includes(q)) ||
         (p.godown && p.godown.toLowerCase().includes(q))
       );
     });
 
     return [...list].sort((a, b) => {
-      const numA = parseInt(String(a.billNo).replace(/[^0-9]/g, ''), 10) || 0;
-      const numB = parseInt(String(b.billNo).replace(/[^0-9]/g, ''), 10) || 0;
+      const numA = parseInt(String(a?.billNo || '').replace(/[^0-9]/g, ''), 10) || 0;
+      const numB = parseInt(String(b?.billNo || '').replace(/[^0-9]/g, ''), 10) || 0;
       if (numB !== numA) return numB - numA;
-      return new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt);
+      return new Date(b?.date || b?.createdAt || 0) - new Date(a?.date || a?.createdAt || 0);
     });
   }, [purchases, historySearch]);
 
@@ -305,7 +307,8 @@ export default function PurchaseScreen({
     let qPurchaseTotal = 0;
     let qPurchaseCount = 0;
 
-    purchases.forEach((p) => {
+    (purchases || []).forEach((p) => {
+      if (!p) return;
       const sub = Number(p.subTotal) || Number(p.grandTotal) || 0;
       const disc = Number(p.discount) || 0;
       const grand = Number(p.grandTotal) || (sub - disc);
@@ -315,7 +318,7 @@ export default function PurchaseScreen({
       netTotal += grand;
 
       (p.items || []).forEach((i) => {
-        totalBags += Number(i.qty) || 0;
+        totalBags += Number(i?.qty) || 0;
       });
 
       if (p.isQPurchase || p.billType === 'Q_PURCHASE') {
@@ -331,7 +334,6 @@ export default function PurchaseScreen({
       totalBags,
       qPurchaseTotal,
       qPurchaseCount,
-      regularCount: purchases.length - qPurchaseCount,
     };
   }, [purchases]);
 
@@ -1000,10 +1002,12 @@ export default function PurchaseScreen({
                           </span>
 
                           {/* Godown Badge */}
-                          <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
-                            <Warehouse className="w-2.5 h-2.5 text-amber-600" />
-                            {p.godown || 'மெயின் குடோன்'}
-                          </span>
+                          {p.godown ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-1">
+                              <Warehouse className="w-2.5 h-2.5 text-amber-600" />
+                              {p.godown}
+                            </span>
+                          ) : null}
                         </div>
 
                         <div className="text-xs font-bold text-slate-700 mt-1">
@@ -1011,7 +1015,7 @@ export default function PurchaseScreen({
                         </div>
 
                         <div className="text-[11px] text-slate-400 mt-0.5">
-                          {(p.items || []).map((i) => `${i.name} (${i.qty} Bag)`).join(', ')}
+                          {(p.items || []).map((i) => `${i?.name || ''} (${i?.qty || 0} Bag)`).filter(Boolean).join(', ')}
                         </div>
 
                         {/* Freight and Discount Badges */}
@@ -1042,17 +1046,19 @@ export default function PurchaseScreen({
                           </span>
                         )}
                         <div className="text-[11px] text-slate-400 font-medium mt-0.5">
-                          {formatDate(p.date)}
+                          {p.date ? formatDate(p.date) : ''}
                         </div>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-2 flex items-center justify-end">
+                    <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-1.5">
                       <button
                         type="button"
                         onClick={() => {
                           if (confirm(`Delete Purchase Bill #${p.billNo}? Stock will be adjusted back.`)) {
-                            onDeletePurchase(p.id);
+                            if (typeof onDeletePurchase === 'function') {
+                              onDeletePurchase(p.id);
+                            }
                           }
                         }}
                         className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg text-xs font-semibold flex items-center gap-1"
@@ -1060,11 +1066,153 @@ export default function PurchaseScreen({
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Delete</span>
                       </button>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPurchaseBill(p)}
+                          className="px-2.5 py-1.5 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-600" />
+                          <span>View Bill</span>
+                        </button>
+
+                        {p.supplierPhone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const cleanPhone = String(p.supplierPhone).replace(/[^0-9]/g, '');
+                              const phoneWithCountry = cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone;
+                              const itemsText = (p.items || []).map((i) => `• ${i.name}: ${i.qty} Bag @ Rs.${i.price}`).join('\n');
+                              const msg =
+                                `🌾 *KVK THANIYA MANDI* 🌾\n` +
+                                `*Purchase Bill #${p.billNo}*\n` +
+                                `Supplier: *${p.supplierName}*\n` +
+                                `Date: ${formatDate(p.date)}\n` +
+                                (p.godown ? `Godown: ${p.godown}\n` : '') +
+                                `━━━━━━━━━━━━━━━━━━\n` +
+                                `${itemsText}\n` +
+                                `━━━━━━━━━━━━━━━━━━\n` +
+                                `Total: *Rs. ${Number(p.grandTotal).toFixed(2)}*\n` +
+                                `Status: *${p.paymentStatus}*\n` +
+                                `Thank you!`;
+                              window.location.href = `https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(msg)}`;
+                            }}
+                            className="px-2.5 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 flex items-center gap-1 shadow-2xs"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>WhatsApp</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW PURCHASE BILL DETAILS MODAL */}
+      {selectedPurchaseBill && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3">
+          <div className="bg-white rounded-2xl p-4 max-w-sm w-full shadow-2xl space-y-3 animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div>
+                <h3 className="font-black text-slate-900 text-base">
+                  Purchase Bill #{selectedPurchaseBill.billNo}
+                </h3>
+                <span className="text-[11px] text-slate-400 font-semibold">
+                  {formatDate(selectedPurchaseBill.date)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPurchaseBill(null)}
+                className="p-1 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Supplier & Godown Info */}
+            <div className="p-2.5 bg-slate-50 rounded-xl space-y-1 text-xs">
+              <div className="font-extrabold text-slate-800">
+                Supplier: {selectedPurchaseBill.supplierName}
+              </div>
+              {selectedPurchaseBill.supplierPhone && (
+                <div className="text-slate-500 font-medium">
+                  Phone: {selectedPurchaseBill.supplierPhone}
+                </div>
+              )}
+              {selectedPurchaseBill.supplierGstin && (
+                <div className="text-indigo-600 font-mono font-bold text-[11px]">
+                  GST: {selectedPurchaseBill.supplierGstin}
+                </div>
+              )}
+              {selectedPurchaseBill.godown && (
+                <div className="text-amber-800 font-bold flex items-center gap-1 pt-0.5">
+                  <Warehouse className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Godown: {selectedPurchaseBill.godown}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Items List */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Items Purchased ({(selectedPurchaseBill.items || []).length})
+              </span>
+              <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
+                {(selectedPurchaseBill.items || []).map((item, idx) => (
+                  <div key={idx} className="p-2 flex items-center justify-between text-xs bg-white">
+                    <div>
+                      <span className="font-bold text-slate-800 block">{item.name}</span>
+                      <span className="text-[10px] text-slate-400">
+                        {item.qty} Bag @ ₹{item.price}
+                      </span>
+                    </div>
+                    <span className="font-black text-slate-900">
+                      ₹{((Number(item.qty) || 0) * (Number(item.price) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Totals Breakdown */}
+            <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 space-y-1 text-xs">
+              <div className="flex justify-between text-slate-600">
+                <span>Subtotal:</span>
+                <span className="font-bold">₹{Number(selectedPurchaseBill.subTotal || selectedPurchaseBill.grandTotal).toFixed(2)}</span>
+              </div>
+              {Number(selectedPurchaseBill.freightCharges) > 0 && (
+                <div className="flex justify-between text-blue-700 font-bold">
+                  <span>+ Freight (வாடகை):</span>
+                  <span>₹{Number(selectedPurchaseBill.freightCharges).toFixed(2)}</span>
+                </div>
+              )}
+              {Number(selectedPurchaseBill.discount) > 0 && (
+                <div className="flex justify-between text-emerald-700 font-bold">
+                  <span>- Discount (தள்ளுபடி):</span>
+                  <span>₹{Number(selectedPurchaseBill.discount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-black text-blue-900 pt-1 border-t border-blue-200">
+                <span>Net Total:</span>
+                <span>{formatCurrency(selectedPurchaseBill.grandTotal)}</span>
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={() => setSelectedPurchaseBill(null)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs rounded-xl"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
