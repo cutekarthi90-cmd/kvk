@@ -19,7 +19,8 @@ import {
   Package,
   RotateCcw,
   ShieldCheck,
-  Percent
+  Percent,
+  Download
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';

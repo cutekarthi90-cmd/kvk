@@ -18,7 +18,10 @@ import {
   ShieldCheck,
   ShieldAlert,
   Percent,
-  Warehouse
+  Warehouse,
+  Eye,
+  Share2,
+  X
 } from 'lucide-react';
 import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
