@@ -6,17 +6,11 @@ import {
   Trash2,
   CheckCircle,
   Package,
-  Calendar,
-  AlertCircle,
   Clock,
   Search,
-  ArrowRight,
-  TrendingUp,
-  AlertTriangle,
   UserPlus,
   Tag,
   ShieldCheck,
-  ShieldAlert,
   Percent,
   Warehouse,
   Eye,
@@ -47,31 +41,23 @@ export default function PurchaseScreen({
   const [supplierOpeningBalance, setSupplierOpeningBalance] = useState('');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [customBillNo, setCustomBillNo] = useState('');
-  const [godownsList, setGodownsList] = useState(() => {
+  const [localGodowns, setLocalGodowns] = useState([]);
+  const godownsList = useMemo(() => {
     const fromProps = Array.isArray(externalGodowns) ? externalGodowns : [];
     const saved = Storage.getGodowns();
     const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
-    const set = new Set([...fromProps, ...saved, ...fromPurchases]);
-    return Array.from(set);
-  });
+    return Array.from(new Set([...fromProps, ...saved, ...fromPurchases, ...localGodowns].filter(Boolean)));
+  }, [externalGodowns, purchases, localGodowns]);
+
   const [selectedGodown, setSelectedGodown] = useState(() => {
     const fromProps = Array.isArray(externalGodowns) ? externalGodowns : [];
     const saved = Storage.getGodowns();
     const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
-    const set = new Set([...fromProps, ...saved, ...fromPurchases]);
-    const arr = Array.from(set);
+    const arr = Array.from(new Set([...fromProps, ...saved, ...fromPurchases].filter(Boolean)));
     return arr.length > 0 ? arr[0] : '';
   });
 
-  useEffect(() => {
-    if (Array.isArray(externalGodowns) && externalGodowns.length > 0) {
-      setGodownsList((prev) => {
-        const updated = Array.from(new Set([...prev, ...externalGodowns]));
-        return updated;
-      });
-      setSelectedGodown((prev) => prev || externalGodowns[0]);
-    }
-  }, [externalGodowns]);
+  const activeGodown = selectedGodown || (godownsList.length > 0 ? godownsList[0] : '');
   const [newGodownInput, setNewGodownInput] = useState('');
   const [isAddingGodown, setIsAddingGodown] = useState(false);
   const [cart, setCart] = useState([]);
@@ -171,7 +157,7 @@ export default function PurchaseScreen({
       return;
     }
     const updated = Array.from(new Set([...godownsList, clean]));
-    setGodownsList(updated);
+    setLocalGodowns((prev) => Array.from(new Set([...prev, clean])));
     if (onSaveGodowns) {
       onSaveGodowns(updated);
     } else {
@@ -187,7 +173,7 @@ export default function PurchaseScreen({
   const handleDeleteGodown = (e, nameToDelete) => {
     e.stopPropagation();
     const updated = godownsList.filter((g) => g !== nameToDelete);
-    setGodownsList(updated);
+    setLocalGodowns((prev) => prev.filter((g) => g !== nameToDelete));
     if (onSaveGodowns) {
       onSaveGodowns(updated);
     } else {
@@ -262,10 +248,10 @@ export default function PurchaseScreen({
       }
     }
 
-    const finalGodown = (selectedGodown || newGodownInput || (godownsList.length > 0 ? godownsList[0] : '')).trim();
+    const finalGodown = (activeGodown || newGodownInput || '').trim();
     if (finalGodown && !godownsList.includes(finalGodown)) {
       const updated = [...godownsList, finalGodown];
-      setGodownsList(updated);
+      setLocalGodowns((prev) => Array.from(new Set([...prev, finalGodown])));
       if (onSaveGodowns) {
         onSaveGodowns(updated);
       } else {
@@ -599,15 +585,15 @@ export default function PurchaseScreen({
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold">
                   <span>சரக்கு வைக்க வேண்டிய குடோனைத் தேர்ந்தெடுக்கவும்:</span>
-                  {selectedGodown && (
+                  {activeGodown && (
                     <span className="text-amber-800 font-black bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      தேர்ந்தெடுத்தது: {selectedGodown}
+                      தேர்ந்தெடுத்தது: {activeGodown}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {godownsList.map((g) => {
-                    const isSelected = selectedGodown === g;
+                    const isSelected = activeGodown === g;
                     return (
                       <div
                         key={g}
