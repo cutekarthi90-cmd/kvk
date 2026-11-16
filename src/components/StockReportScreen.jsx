@@ -50,6 +50,7 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
 
   // Godown list from user-created godowns, purchases, or items' initial stock
   const availableGodowns = useMemo(() => {
+    const deleted = Storage.getDeletedGodowns();
     const list = [
       { id: 'ALL', label: 'அனைத்து குடோன்கள் (All Godowns)', short: '🌐 All Godowns' },
     ];
@@ -57,7 +58,6 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     const pool = [
       ...(Array.isArray(godowns) ? godowns : []),
       ...Storage.getGodowns(),
-      ...(purchases || []).map((p) => p.godown),
     ];
     items.forEach((item) => {
       if (item.godownInitialStock && typeof item.godownInitialStock === 'object') {
@@ -68,13 +68,13 @@ export default function StockReportScreen({ items = [], sales = [], purchases = 
     });
     pool.forEach((g) => {
       const clean = (g || '').trim();
-      if (clean && !seen.has(clean)) {
+      if (clean && !deleted.includes(clean) && !seen.has(clean)) {
         seen.add(clean);
         list.push({ id: clean, label: clean, short: `🏢 ${clean}` });
       }
     });
     return list;
-  }, [godowns, purchases, items]);
+  }, [godowns, items]);
 
   // Filter ONLY Original GST Bills (excluding Q-Sales & Q-Purchases)
   const gstSales = useMemo(() => {

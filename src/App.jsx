@@ -207,9 +207,44 @@ export default function App() {
 
   const handleSaveGodowns = (newGodowns) => {
     const cleanList = Array.from(new Set((newGodowns || []).map((g) => (g || '').trim()).filter(Boolean)));
+    cleanList.forEach((g) => Storage.unrecordDeletedGodown(g));
     setGodowns(cleanList);
     Storage.saveGodowns(cleanList);
     SyncService.dispatch('SAVE_GODOWNS', cleanList);
+  };
+
+  const handleDeleteGodown = (nameToDelete) => {
+    const cleanName = (nameToDelete || '').trim();
+    if (!cleanName) return;
+
+    // 1. Blacklist in deleted godowns
+    Storage.recordDeletedGodown(cleanName);
+
+    // 2. Remove from active godowns list
+    const updatedGodowns = (godowns || []).filter((g) => (g || '').trim() !== cleanName);
+    setGodowns(updatedGodowns);
+    Storage.saveGodowns(updatedGodowns);
+    SyncService.dispatch('SAVE_GODOWNS', updatedGodowns);
+
+    // 3. Clean up from item godownInitialStock
+    setItems((prevItems) => {
+      const updatedItems = prevItems.map((item) => {
+        if (item.godownInitialStock && item.godownInitialStock[cleanName] !== undefined) {
+          const nextMap = { ...item.godownInitialStock };
+          delete nextMap[cleanName];
+          const newTotal = Object.values(nextMap).reduce((s, v) => s + (Number(v) || 0), 0);
+          return {
+            ...item,
+            godownInitialStock: nextMap,
+            initialStock: newTotal,
+          };
+        }
+        return item;
+      });
+      Storage.saveItems(updatedItems);
+      SyncService.dispatch('SAVE_ITEMS', updatedItems);
+      return updatedItems;
+    });
   };
 
   const handleSaveShop = (newShop) => {
@@ -535,6 +570,7 @@ export default function App() {
             onDeletePurchase={handleDeletePurchase}
             onSaveSuppliers={handleSaveSuppliers}
             onSaveGodowns={handleSaveGodowns}
+            onDeleteGodown={handleDeleteGodown}
           />
         )}
 
@@ -575,13 +611,18 @@ export default function App() {
             godowns={godowns}
             onSaveItems={handleSaveItems}
             onDeleteItem={handleDeleteItem}
+            onSaveGodowns={handleSaveGodowns}
+            onDeleteGodown={handleDeleteGodown}
           />
         )}
 
         {activeTab === 'settings' && (
           <SettingsScreen
             shop={shop}
+            godowns={godowns}
             onSaveShop={handleSaveShop}
+            onSaveGodowns={handleSaveGodowns}
+            onDeleteGodown={handleDeleteGodown}
             onReloadAll={handleReloadAll}
             syncStatus={syncStatus}
           />

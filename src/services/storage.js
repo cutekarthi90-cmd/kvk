@@ -1396,17 +1396,54 @@ export const Storage = {
   },
 
   // --- GODOWNS (குடோன்கள்) ---
+  getDeletedGodowns: () => {
+    try {
+      const data = localStorage.getItem('quickbill_deleted_godowns');
+      return data ? JSON.parse(data) : [];
+    } catch {
+      return [];
+    }
+  },
+  recordDeletedGodown: (godownName) => {
+    try {
+      const name = (godownName || '').trim();
+      if (!name) return;
+      const current = Storage.getDeletedGodowns();
+      if (!current.includes(name)) {
+        current.push(name);
+        localStorage.setItem('quickbill_deleted_godowns', JSON.stringify(current));
+      }
+      // Also remove from saved godowns
+      const data = localStorage.getItem('quickbill_godowns');
+      const list = data ? JSON.parse(data) : [];
+      const filtered = (Array.isArray(list) ? list : []).filter((g) => (g || '').trim() !== name);
+      localStorage.setItem('quickbill_godowns', JSON.stringify(filtered));
+      Storage.touchModified();
+    } catch {}
+  },
+  unrecordDeletedGodown: (godownName) => {
+    try {
+      const name = (godownName || '').trim();
+      if (!name) return;
+      const current = Storage.getDeletedGodowns().filter((g) => g.trim() !== name);
+      localStorage.setItem('quickbill_deleted_godowns', JSON.stringify(current));
+      Storage.touchModified();
+    } catch {}
+  },
   getGodowns: () => {
     try {
+      const deleted = Storage.getDeletedGodowns();
       const data = localStorage.getItem('quickbill_godowns');
-      if (data) {
+      if (data !== null) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((g) => !deleted.includes((g || '').trim()));
+        }
       }
-      // Fallback: collect any godowns previously saved in purchase bills
+      // Fallback only if never saved
       const purchases = Storage.getPurchases();
       const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
-      return Array.from(new Set(fromPurchases));
+      return Array.from(new Set(fromPurchases)).filter((g) => !deleted.includes(g.trim()));
     } catch {
       return [];
     }

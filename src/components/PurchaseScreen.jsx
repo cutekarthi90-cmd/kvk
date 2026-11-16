@@ -29,6 +29,7 @@ export default function PurchaseScreen({
   onDeletePurchase,
   onSaveSuppliers,
   onSaveGodowns,
+  onDeleteGodown,
 }) {
   const [activeTab, setActiveTab] = useState('create'); // 'create' | 'history'
   
@@ -43,11 +44,11 @@ export default function PurchaseScreen({
   const [customBillNo, setCustomBillNo] = useState('');
   const [localGodowns, setLocalGodowns] = useState([]);
   const godownsList = useMemo(() => {
-    const fromProps = Array.isArray(externalGodowns) ? externalGodowns : [];
-    const saved = Storage.getGodowns();
-    const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
-    return Array.from(new Set([...fromProps, ...saved, ...fromPurchases, ...localGodowns].filter(Boolean)));
-  }, [externalGodowns, purchases, localGodowns]);
+    const deleted = Storage.getDeletedGodowns();
+    const fromProps = (Array.isArray(externalGodowns) ? externalGodowns : []).filter((g) => !deleted.includes((g || '').trim()));
+    const saved = Storage.getGodowns().filter((g) => !deleted.includes((g || '').trim()));
+    return Array.from(new Set([...fromProps, ...saved, ...localGodowns].filter(Boolean)));
+  }, [externalGodowns, localGodowns]);
 
   const [selectedGodown, setSelectedGodown] = useState(() => {
     const fromProps = Array.isArray(externalGodowns) ? externalGodowns : [];
@@ -172,18 +173,29 @@ export default function PurchaseScreen({
 
   const handleDeleteGodown = (e, nameToDelete) => {
     e.stopPropagation();
-    const updated = godownsList.filter((g) => g !== nameToDelete);
-    setLocalGodowns((prev) => prev.filter((g) => g !== nameToDelete));
-    if (onSaveGodowns) {
-      onSaveGodowns(updated);
+    if (!window.confirm(`குடோன் "${nameToDelete}" பெயரை நிச்சயமாக நீக்க வேண்டுமா? (Delete godown '${nameToDelete}'?)`)) {
+      return;
+    }
+    const clean = (nameToDelete || '').trim();
+    Storage.recordDeletedGodown(clean);
+    setLocalGodowns((prev) => prev.filter((g) => g !== clean));
+
+    if (onDeleteGodown) {
+      onDeleteGodown(clean);
     } else {
-      Storage.saveGodowns(updated);
-      SyncService.dispatch('SAVE_GODOWNS', updated);
+      const updated = godownsList.filter((g) => g !== clean);
+      if (onSaveGodowns) {
+        onSaveGodowns(updated);
+      } else {
+        Storage.saveGodowns(updated);
+        SyncService.dispatch('SAVE_GODOWNS', updated);
+      }
     }
-    if (selectedGodown === nameToDelete) {
-      setSelectedGodown(updated.length > 0 ? updated[0] : '');
+    if (selectedGodown === clean) {
+      const remaining = godownsList.filter((g) => g !== clean);
+      setSelectedGodown(remaining.length > 0 ? remaining[0] : '');
     }
-    showToast(`குடோன் "${nameToDelete}" நீக்கப்பட்டது.`);
+    showToast(`குடோன் "${clean}" நீக்கப்பட்டது.`);
   };
 
   const handleSelectSupplier = (s) => {

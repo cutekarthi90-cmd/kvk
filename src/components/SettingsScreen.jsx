@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Store,
   Save,
@@ -17,7 +17,10 @@ import {
   Calendar,
   ShieldCheck,
   ShieldAlert,
-  Percent
+  Percent,
+  Warehouse,
+  Trash2,
+  Plus,
 } from 'lucide-react';
 import { Storage, getFinancialYear } from '../services/storage';
 import { getServerUrl, setServerUrl, SyncService } from '../services/syncService';
@@ -31,8 +34,25 @@ import {
 import { openDirectWhatsApp } from '../services/shareService';
 import { formatCurrency } from '../services/pdfService';
 
-export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStatus }) {
+export default function SettingsScreen({
+  shop,
+  godowns = [],
+  onSaveShop,
+  onSaveGodowns,
+  onDeleteGodown,
+  onReloadAll,
+  syncStatus
+}) {
   const [form, setForm] = useState({ ...shop });
+  const [newGodownName, setNewGodownName] = useState('');
+
+  const deletedGodowns = Storage.getDeletedGodowns();
+  const activeGodownsList = useMemo(() => {
+    const fromProps = Array.isArray(godowns) ? godowns : [];
+    const fromStorage = Storage.getGodowns();
+    const combined = Array.from(new Set([...fromProps, ...fromStorage].filter(Boolean)));
+    return combined.filter((g) => !deletedGodowns.includes((g || '').trim()));
+  }, [godowns, deletedGodowns]);
   const [serverUrlInput, setServerUrlInput] = useState(() => getServerUrl());
   const [fbConfigInput, setFbConfigInput] = useState(() => {
     const saved = getSavedFirebaseConfig();
@@ -252,6 +272,109 @@ export default function SettingsScreen({ shop, onSaveShop, onReloadAll, syncStat
             <Share2 className="w-4 h-4 text-emerald-600" />
             <span>WhatsApp Auditor</span>
           </button>
+        </div>
+      </div>
+
+      {/* 🏢 குடோன் மேலாண்மை (Godown Management - Requested by user) */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 uppercase flex items-center gap-1.5">
+              <Warehouse className="w-4 h-4 text-amber-600" />
+              <span>குடோன் மேலாண்மை (Godown Management)</span>
+            </h3>
+            <p className="text-[11px] text-slate-400 font-medium mt-0.5">
+              தேவையற்ற குடோன் பெயர்களை நீக்கலாம் அல்லது புதிய குடோன் சேர்க்கலாம்
+            </p>
+          </div>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+            {activeGodownsList.length} குடோன்கள்
+          </span>
+        </div>
+
+        {/* Input to add a new godown */}
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="புதிய குடோன் பெயர் (எ.கா: குடோன் 2, JK Godown)..."
+            value={newGodownName}
+            onChange={(e) => setNewGodownName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                const clean = newGodownName.trim();
+                if (!clean) return;
+                const updated = Array.from(new Set([...activeGodownsList, clean]));
+                if (onSaveGodowns) {
+                  onSaveGodowns(updated);
+                } else {
+                  Storage.saveGodowns(updated);
+                }
+                setNewGodownName('');
+                showToast(`🏢 குடோன் "${clean}" வெற்றிகரமாக சேர்க்கப்பட்டது!`);
+              }
+            }}
+            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              const clean = newGodownName.trim();
+              if (!clean) return;
+              const updated = Array.from(new Set([...activeGodownsList, clean]));
+              if (onSaveGodowns) {
+                onSaveGodowns(updated);
+              } else {
+                Storage.saveGodowns(updated);
+              }
+              setNewGodownName('');
+              showToast(`🏢 குடோன் "${clean}" வெற்றிகரமாக சேர்க்கப்பட்டது!`);
+            }}
+            className="px-3 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black shadow-xs active:scale-95 transition-all flex items-center gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>சேர்</span>
+          </button>
+        </div>
+
+        {/* List of existing godowns with delete button */}
+        <div className="space-y-1.5 pt-1">
+          {activeGodownsList.length === 0 ? (
+            <div className="text-center p-3 text-xs text-slate-400 font-bold bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              தற்போது தனியாக குடோன்கள் எதுவும் இல்லை.
+            </div>
+          ) : (
+            activeGodownsList.map((g) => (
+              <div
+                key={g}
+                className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-200 text-xs"
+              >
+                <div className="flex items-center gap-2 font-black text-slate-800">
+                  <Warehouse className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>{g}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm(`குடோன் "${g}" பெயரை நிச்சயமாக நீக்க வேண்டுமா? (Delete godown '${g}'?)`)) {
+                      if (onDeleteGodown) {
+                        onDeleteGodown(g);
+                      } else {
+                        Storage.recordDeletedGodown(g);
+                      }
+                      showToast(`குடோன் "${g}" வெற்றிகரமாக நீக்கப்பட்டது.`);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg text-xs font-black flex items-center gap-1 active:scale-95 transition-all"
+                  title="Delete this godown"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>நீக்கு (Delete)</span>
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
