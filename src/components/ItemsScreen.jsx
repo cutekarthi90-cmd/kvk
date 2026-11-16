@@ -241,7 +241,9 @@ export default function ItemsScreen({
       }
     });
 
-    const finalInitialStock = totalFromGodowns > 0 ? totalFromGodowns : (Number(initialStock) || 0);
+    // If godowns inputs were filled, use their total; otherwise fallback to direct initialStock input
+    const hasGodownEntries = Object.keys(godownStockInputs).length > 0;
+    const finalInitialStock = hasGodownEntries ? totalFromGodowns : (Number(initialStock) || 0);
 
     if (editingItem) {
       const updated = items.map((i) =>
@@ -753,7 +755,7 @@ export default function ItemsScreen({
                     ) : (
                       <Layers className="w-3 h-3" />
                     )}
-                    {selectedStockGodown !== 'ALL' ? stats.godownPurchased : stats.current} Bag
+                    {selectedStockGodown !== 'ALL' ? stats.godownTotal : stats.current} Bag
                   </span>
 
                   {selectedStockGodown !== 'ALL' && (
@@ -767,7 +769,7 @@ export default function ItemsScreen({
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400 font-medium hidden sm:inline">
                     {selectedStockGodown !== 'ALL'
-                      ? `குடோன் கொள்முதல்: ${stats.godownPurchased} Bags`
+                      ? `தொடக்க இருப்பு: ${stats.godownInitial} | கொள்முதல்: +${stats.godownPurchased}`
                       : `In: ${stats.initial + stats.purchased} | Out: ${stats.sold}`}
                   </span>
 

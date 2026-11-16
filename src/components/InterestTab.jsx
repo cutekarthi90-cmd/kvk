@@ -14,11 +14,73 @@ import {
   DollarSign,
   Share2,
   X,
-  CreditCard
+  CreditCard,
+  RotateCcw,
 } from 'lucide-react';
 import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp } from '../services/shareService';
+
+/**
+ * Calculates loan accrual, duration (days & months), total accumulated interest till date,
+ * paid interest, pending interest, remaining principal, and settlement due.
+ */
+export const calculateLoanMetrics = (loan, loanPayments = []) => {
+  const p = Number(loan.principalAmount) || 0;
+  const rate = Number(loan.interestRate) || 0;
+  const monthlyInt = Number(loan.monthlyInterest) || ((p * rate) / 100);
+
+  const totalIntPaid = loanPayments.reduce(
+    (sum, pmt) => sum + (Number(pmt.interestAmount) || 0),
+    0
+  );
+  const totalPrinRepaid = loanPayments.reduce(
+    (sum, pmt) => sum + (Number(pmt.principalRepaid) || 0),
+    0
+  );
+  const balancePrincipal = Math.max(0, p - totalPrinRepaid);
+
+  // Status check: either explicitly marked CLOSED or fully paid principal
+  const isClosed = loan.status === 'CLOSED' || (balancePrincipal <= 0 && totalPrinRepaid > 0);
+
+  // Time elapsed calculation
+  const startDateStr = loan.startDate || (loan.createdAt ? loan.createdAt.split('T')[0] : '');
+  let diffDays = 0;
+  let elapsedMonths = '0.0';
+  let totalAccruedInterest = 0;
+
+  if (startDateStr) {
+    const start = new Date(startDateStr);
+    // If loan is closed and has closedAt date, calculate up to closedAt; otherwise up to today
+    const endDate = isClosed && loan.closedAt ? new Date(loan.closedAt) : new Date();
+    const startMidnight = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endMidnight = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    const diffTime = Math.max(0, endMidnight.getTime() - startMidnight.getTime());
+    diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    // Mandi standard convention: 30 days = 1 month
+    elapsedMonths = (diffDays / 30).toFixed(1);
+    totalAccruedInterest = Math.round((diffDays / 30) * monthlyInt);
+  }
+
+  const pendingInterest = Math.max(0, totalAccruedInterest - totalIntPaid);
+  const totalSettlementDue = isClosed ? 0 : (balancePrincipal + pendingInterest);
+
+  return {
+    principalAmount: p,
+    interestRate: rate,
+    monthlyInterest: monthlyInt,
+    diffDays,
+    elapsedMonths,
+    totalAccruedInterest,
+    totalIntPaid,
+    totalPrinRepaid,
+    balancePrincipal: isClosed && balancePrincipal <= 0 ? 0 : balancePrincipal,
+    pendingInterest,
+    totalSettlementDue,
+    isClosed,
+  };
+};
 
 export default function InterestTab({
   shop = {},
@@ -36,8 +98,8 @@ export default function InterestTab({
 
   const [isAddingLoan, setIsAddingLoan] = useState(false);
   const [isAddingPayment, setIsAddingPayment] = useState(false);
-  const [selectedLoanId, setSelectedLoanId] = useState(null);
   const [toast, setToast] = useState('');
+  const [loanFilter, setLoanFilter] = useState('ALL'); // 'ALL' | 'ACTIVE' | 'CLOSED'
 
   // Loan Form States
   const [lenderName, setLenderName] = useState('');
@@ -60,16 +122,28 @@ export default function InterestTab({
     setTimeout(() => setToast(''), 3000);
   };
 
-  // Summary Metrics
+  // Summary Metrics across all loans
   const summary = useMemo(() => {
     let totalPrincipalBorrowed = 0;
     let totalMonthlyInterest = 0;
+    let totalAccruedInterestAll = 0;
+    let totalPendingInterestAll = 0;
+    let activeLoansCount = 0;
+    let closedLoansCount = 0;
 
     loans.forEach((l) => {
-      const p = Number(l.principalAmount) || 0;
-      const rate = Number(l.interestRate) || 0;
-      totalPrincipalBorrowed += p;
-      totalMonthlyInterest += (p * rate) / 100;
+      const loanPmts = payments.filter((p) => p.loanId === l.id);
+      const metrics = calculateLoanMetrics(l, loanPmts);
+
+      totalPrincipalBorrowed += metrics.principalAmount;
+      if (!metrics.isClosed) {
+        totalMonthlyInterest += metrics.monthlyInterest;
+        activeLoansCount++;
+      } else {
+        closedLoansCount++;
+      }
+      totalAccruedInterestAll += metrics.totalAccruedInterest;
+      totalPendingInterestAll += metrics.pendingInterest;
     });
 
     const totalInterestPaid = payments.reduce(
@@ -89,7 +163,11 @@ export default function InterestTab({
       totalInterestPaid,
       totalPrincipalRepaid,
       remainingPrincipal,
-      activeLoansCount: loans.length,
+      totalAccruedInterestAll,
+      totalPendingInterestAll,
+      activeLoansCount,
+      closedLoansCount,
+      totalLoansCount: loans.length,
     };
   }, [loans, payments]);
 
@@ -116,6 +194,7 @@ export default function InterestTab({
       interestRate: numRate,
       monthlyInterest: (numP * numRate) / 100,
       startDate: loanStartDate,
+      status: 'ACTIVE',
       notes: loanNotes.trim(),
       createdAt: new Date().toISOString(),
     };
@@ -134,6 +213,33 @@ export default function InterestTab({
     setPrincipalAmount('');
     setLoanNotes('');
     setIsAddingLoan(false);
+  };
+
+  // Toggle Loan Status: ACTIVE <-> CLOSED
+  const handleToggleLoanStatus = (loan) => {
+    const loanPmts = payments.filter((p) => p.loanId === loan.id);
+    const metrics = calculateLoanMetrics(loan, loanPmts);
+    const willClose = !metrics.isClosed;
+
+    const updatedLoan = {
+      ...loan,
+      status: willClose ? 'CLOSED' : 'ACTIVE',
+      closedAt: willClose ? new Date().toISOString() : null,
+    };
+
+    if (onSaveLoan) {
+      onSaveLoan(updatedLoan);
+    } else {
+      const updated = loans.map((l) => (l.id === loan.id ? updatedLoan : l));
+      setInternalLoans(updated);
+      Storage.saveInterestLoans(updated);
+    }
+
+    showToast(
+      willClose
+        ? '✓ கடன் முடிந்தது என குறிக்கப்பட்டது (Loan Marked CLOSED)'
+        : '↺ கடன் மீண்டும் நடைமுறைக்கு மாற்றப்பட்டது (Loan Reopened)'
+    );
   };
 
   // Handle Save Monthly Interest Payment
@@ -231,9 +337,7 @@ export default function InterestTab({
   // WhatsApp Statement for a specific loan
   const handleShareLoanStatement = (loan) => {
     const loanPayments = payments.filter((p) => p.loanId === loan.id);
-    const totalInt = loanPayments.reduce((s, p) => s + (Number(p.interestAmount) || 0), 0);
-    const totalPrinRepaid = loanPayments.reduce((s, p) => s + (Number(p.principalRepaid) || 0), 0);
-    const balPrincipal = Math.max(0, loan.principalAmount - totalPrinRepaid);
+    const metrics = calculateLoanMetrics(loan, loanPayments);
 
     const historyText = loanPayments
       .slice(0, 5)
@@ -245,15 +349,23 @@ export default function InterestTab({
       `━━━━━━━━━━━━━━━━━━\n` +
       `📊 *LOAN & INTEREST STATEMENT (வட்டி கணக்கு)*\n` +
       `Lender: *${loan.lenderName}*\n` +
+      `Status: *${metrics.isClosed ? '✓ CLOSED / கடன் முடிந்தது' : 'ACTIVE / நடைமுறையில்'}*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `• Initial Principal: *Rs. ${Number(loan.principalAmount).toFixed(2)}*\n` +
+      `• Borrowed Date (தொடக்க தேதி): *${formatDate(loan.startDate)}*\n` +
+      `• Loan Duration (காலம்): *${metrics.diffDays} நாட்கள் (${metrics.elapsedMonths} மாதங்கள்)*\n` +
+      `• Initial Principal (அசல்): *Rs. ${metrics.principalAmount.toFixed(2)}*\n` +
       `• Rate of Interest: *${loan.interestRate}% / month*\n` +
-      `• Monthly Interest: *Rs. ${Number(loan.monthlyInterest).toFixed(2)}*\n` +
-      `• Start Date: ${formatDate(loan.startDate)}\n` +
+      `• Monthly Interest: *Rs. ${metrics.monthlyInterest.toFixed(2)}*\n` +
       `━━━━━━━━━━━━━━━━━━\n` +
-      `• Total Interest Paid: *Rs. ${totalInt.toFixed(2)}*\n` +
-      `• Total Principal Repaid: *Rs. ${totalPrinRepaid.toFixed(2)}*\n` +
-      `• *Remaining Principal Due: Rs. ${balPrincipal.toFixed(2)}*\n` +
+      `• Total Accrued Interest Till Date (இதுவரை மொத்த வட்டி): *Rs. ${metrics.totalAccruedInterest.toFixed(2)}*\n` +
+      `• Total Interest Paid (செலுத்திய வட்டி): *Rs. ${metrics.totalIntPaid.toFixed(2)}*\n` +
+      `• Pending Interest (பாக்கி வட்டி): *Rs. ${metrics.pendingInterest.toFixed(2)}*\n` +
+      `• Balance Principal (மீதமுள்ள அசல்): *Rs. ${metrics.balancePrincipal.toFixed(2)}*\n` +
+      (!metrics.isClosed
+        ? `━━━━━━━━━━━━━━━━━━\n` +
+          `👉 *TOTAL SETTLEMENT DUE (கடன் தீர்வு தொகை): Rs. ${metrics.totalSettlementDue.toFixed(2)}*\n`
+        : `━━━━━━━━━━━━━━━━━━\n` +
+          `✓ *கடன் முழுவதும் தீர்க்கப்பட்டு முடிந்தது.*\n`) +
       (historyText ? `\nRecent Payments:\n${historyText}\n` : '') +
       `━━━━━━━━━━━━━━━━━━\n` +
       `KVK Thaniya Mandi, Chennimalai.`;
@@ -264,6 +376,17 @@ export default function InterestTab({
       alert('Financier phone number not found!');
     }
   };
+
+  // Filtered loans based on tab
+  const filteredLoans = useMemo(() => {
+    return loans.filter((loan) => {
+      const loanPmts = payments.filter((p) => p.loanId === loan.id);
+      const metrics = calculateLoanMetrics(loan, loanPmts);
+      if (loanFilter === 'ACTIVE') return !metrics.isClosed;
+      if (loanFilter === 'CLOSED') return metrics.isClosed;
+      return true;
+    });
+  }, [loans, payments, loanFilter]);
 
   return (
     <div className="space-y-3 animate-in fade-in duration-200">
@@ -324,13 +447,13 @@ export default function InterestTab({
               {formatCurrency(summary.remainingPrincipal)}
             </div>
             <span className="text-[11px] text-slate-400 font-medium">
-              Borrowed: {formatCurrency(summary.totalPrincipalBorrowed)} • {summary.activeLoansCount} Loans
+              Borrowed: {formatCurrency(summary.totalPrincipalBorrowed)} • {summary.activeLoansCount} Active ({summary.closedLoansCount} Closed)
             </span>
           </div>
 
           <div className="text-right">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-              Monthly Interest
+              Monthly Active Interest
             </span>
             <div className="text-lg font-black text-red-400 mt-0.5">
               {formatCurrency(summary.totalMonthlyInterest)} / mo
@@ -338,14 +461,20 @@ export default function InterestTab({
           </div>
         </div>
 
-        {/* Total Interest Paid metric */}
-        <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700 flex items-center justify-between text-xs">
-          <div>
-            <span className="text-slate-400 font-bold block">இதுவரை செலுத்திய மொத்த வட்டி</span>
-            <span className="text-[10px] text-slate-500">Total Interest Paid Till Date</span>
+        {/* Accrued Interest Till Date & Total Paid */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+            <span className="text-[10px] text-slate-400 font-bold block">இதுவரை ஆகியுள்ள மொத்த வட்டி</span>
+            <div className="font-black text-sm text-amber-300 mt-0.5">
+              {formatCurrency(summary.totalAccruedInterestAll)}
+            </div>
           </div>
-          <div className="font-black text-base text-emerald-400">
-            {formatCurrency(summary.totalInterestPaid)}
+
+          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700">
+            <span className="text-[10px] text-slate-400 font-bold block">இதுவரை செலுத்திய வட்டி</span>
+            <div className="font-black text-sm text-emerald-400 mt-0.5">
+              {formatCurrency(summary.totalInterestPaid)}
+            </div>
           </div>
         </div>
       </div>
@@ -510,11 +639,15 @@ export default function InterestTab({
               required
             >
               <option value="">-- Choose Lender ({loans.length}) --</option>
-              {loans.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.lenderName} • Principal: ₹{l.principalAmount} (Monthly Int: ₹{l.monthlyInterest})
-                </option>
-              ))}
+              {loans.map((l) => {
+                const loanPmts = payments.filter((p) => p.loanId === l.id);
+                const m = calculateLoanMetrics(l, loanPmts);
+                return (
+                  <option key={l.id} value={l.id}>
+                    {m.isClosed ? '✓ [முடிந்தது] ' : ''}{l.lenderName} • Principal: ₹{l.principalAmount} (Monthly: ₹{l.monthlyInterest})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -602,37 +735,99 @@ export default function InterestTab({
 
       {/* LOANS LIST (LENDERS CARDS) */}
       <div className="space-y-2 pt-1">
-        <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-          <Coins className="w-4 h-4 text-amber-600" />
-          Active Loans & Financiers ({loans.length})
-        </h4>
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <Coins className="w-4 h-4 text-amber-600" />
+            Financiers & Loans ({loans.length})
+          </h4>
+        </div>
 
-        {loans.length === 0 ? (
+        {/* Filter Pills */}
+        <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setLoanFilter('ALL')}
+            className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+              loanFilter === 'ALL'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            அனைத்தும் ({loans.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoanFilter('ACTIVE')}
+            className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+              loanFilter === 'ACTIVE'
+                ? 'bg-amber-600 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            நடைமுறையில் ({summary.activeLoansCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setLoanFilter('CLOSED')}
+            className={`flex-1 py-1.5 text-xs font-black rounded-lg transition-all ${
+              loanFilter === 'CLOSED'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            முடிந்தது ({summary.closedLoansCount})
+          </button>
+        </div>
+
+        {filteredLoans.length === 0 ? (
           <div className="bg-white rounded-xl p-8 text-center border border-slate-200">
             <Coins className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-xs text-slate-500 font-bold">No interest loans recorded yet.</p>
-            <button
-              onClick={() => setIsAddingLoan(true)}
-              className="mt-2 text-xs text-amber-600 font-bold underline"
-            >
-              + Click here to add your first loan
-            </button>
+            <p className="text-xs text-slate-500 font-bold">
+              {loanFilter === 'CLOSED'
+                ? 'முடிந்த கடன்கள் எதுவும் இல்லை (No closed loans).'
+                : loanFilter === 'ACTIVE'
+                ? 'நடைமுறையில் கடன்கள் இல்லை (No active loans).'
+                : 'No interest loans recorded yet.'}
+            </p>
+            {loans.length === 0 && (
+              <button
+                onClick={() => setIsAddingLoan(true)}
+                className="mt-2 text-xs text-amber-600 font-bold underline"
+              >
+                + Click here to add your first loan
+              </button>
+            )}
           </div>
         ) : (
-          loans.map((loan) => {
+          filteredLoans.map((loan) => {
             const loanPayments = payments.filter((p) => p.loanId === loan.id);
-            const totalInt = loanPayments.reduce((s, p) => s + (Number(p.interestAmount) || 0), 0);
-            const totalPrinRepaid = loanPayments.reduce((s, p) => s + (Number(p.principalRepaid) || 0), 0);
-            const balPrincipal = Math.max(0, loan.principalAmount - totalPrinRepaid);
+            const metrics = calculateLoanMetrics(loan, loanPayments);
 
             return (
               <div
                 key={loan.id}
-                className="bg-white rounded-xl p-3.5 border border-slate-200 shadow-2xs space-y-2.5"
+                className={`rounded-2xl p-3.5 border shadow-2xs space-y-3 transition-all ${
+                  metrics.isClosed
+                    ? 'bg-slate-50 border-emerald-300 opacity-95'
+                    : 'bg-white border-slate-200'
+                }`}
               >
+                {/* Header */}
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="font-black text-slate-900 text-sm">{loan.lenderName}</div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-black text-slate-900 text-base">{loan.lenderName}</span>
+                      {metrics.isClosed ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white flex items-center gap-1 shadow-2xs">
+                          <CheckCircle className="w-3 h-3" />
+                          CLOSED / கடன் முடிந்தது
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                          ACTIVE / நடைமுறையில்
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 font-medium">
                       <Phone className="w-3 h-3 text-emerald-600" />
                       {loan.lenderPhone || 'No Phone'} • From {formatDate(loan.startDate)}
@@ -641,32 +836,87 @@ export default function InterestTab({
 
                   <div className="text-right shrink-0">
                     <span className="text-[10px] text-slate-400 font-bold uppercase block">
-                      Balance Principal
+                      {metrics.isClosed ? 'Status' : 'Balance Principal'}
                     </span>
-                    <span className="font-black text-base text-amber-900">
-                      {formatCurrency(balPrincipal)}
+                    <span
+                      className={`font-black text-base ${
+                        metrics.isClosed ? 'text-emerald-700' : 'text-amber-900'
+                      }`}
+                    >
+                      {metrics.isClosed ? 'முடிந்தது' : formatCurrency(metrics.balancePrincipal)}
                     </span>
                   </div>
                 </div>
 
-                {/* Sub metrics */}
-                <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2 rounded-xl text-center text-xs border border-slate-100">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold">Rate</span>
-                    <span className="font-black text-slate-800">{loan.interestRate}% / mo</span>
+                {/* ACCUMULATED INTEREST & DURATION SUMMARY BOX (User Requested) */}
+                <div
+                  className={`p-3 rounded-xl border text-xs space-y-2 ${
+                    metrics.isClosed
+                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                      : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                  }`}
+                >
+                  <div className="flex items-center justify-between pb-1.5 border-b border-amber-200/60">
+                    <div className="flex items-center gap-1 font-black text-slate-800">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>காலம் (Duration):</span>
+                      <span className="text-amber-900 ml-1 font-black">
+                        {metrics.diffDays} நாட்கள் ({metrics.elapsedMonths} மாதங்கள்)
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[10px] text-slate-500 font-bold">வட்டி: </span>
+                      <span className="font-bold text-slate-700">ரூ {loan.interestRate} (100க்கு)</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold">Monthly Int</span>
-                    <span className="font-black text-red-600">{formatCurrency(loan.monthlyInterest)}</span>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-white/90 p-2 rounded-lg border border-amber-100">
+                      <span className="text-[10px] text-slate-500 font-bold block">
+                        மாத வட்டி (Monthly EMI)
+                      </span>
+                      <span className="font-black text-sm text-red-600">
+                        {formatCurrency(metrics.monthlyInterest)}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/90 p-2 rounded-lg border border-amber-100">
+                      <span className="text-[10px] text-amber-800 font-bold block">
+                        இப்போது வரை ஆகியுள்ள வட்டி
+                      </span>
+                      <span className="font-black text-sm text-amber-900">
+                        {formatCurrency(metrics.totalAccruedInterest)}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block font-bold">Total Paid</span>
-                    <span className="font-black text-emerald-600">{formatCurrency(totalInt)}</span>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-200/50 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 font-semibold">செலுத்திய வட்டி: </span>
+                      <span className="font-black text-emerald-700">
+                        {formatCurrency(metrics.totalIntPaid)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-500 font-semibold">பாக்கி வட்டி: </span>
+                      <span className="font-black text-red-600">
+                        {formatCurrency(metrics.pendingInterest)}
+                      </span>
+                    </div>
                   </div>
+
+                  {!metrics.isClosed && (
+                    <div className="bg-amber-900 text-amber-100 p-2 rounded-lg flex items-center justify-between font-black text-xs">
+                      <span>கடன் முடிக்க மொத்த தீர்வு தொகை (Total Due):</span>
+                      <span className="text-sm text-amber-300">
+                        {formatCurrency(metrics.totalSettlementDue)}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Actions */}
-                <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-1.5">
+                <div className="border-t border-slate-100 pt-2 flex items-center justify-between gap-1.5 flex-wrap">
                   <button
                     type="button"
                     onClick={() => handleDeleteLoan(loan.id)}
@@ -676,18 +926,43 @@ export default function InterestTab({
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
 
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Toggle Closed / Reopen Status */}
                     <button
                       type="button"
-                      onClick={() => {
-                        setPaymentLoanId(loan.id);
-                        setInterestPaidAmount(String(loan.monthlyInterest));
-                        setIsAddingPayment(true);
-                      }}
-                      className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-bold border border-emerald-200"
+                      onClick={() => handleToggleLoanStatus(loan)}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-black flex items-center gap-1 transition-all ${
+                        metrics.isClosed
+                          ? 'bg-slate-200 hover:bg-slate-300 text-slate-800'
+                          : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border border-emerald-300'
+                      }`}
                     >
-                      + Pay Interest
+                      {metrics.isClosed ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Reopen Loan</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>கடன் முடிந்தது (Close)</span>
+                        </>
+                      )}
                     </button>
+
+                    {!metrics.isClosed && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPaymentLoanId(loan.id);
+                          setInterestPaidAmount(String(loan.monthlyInterest));
+                          setIsAddingPayment(true);
+                        }}
+                        className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black shadow-2xs"
+                      >
+                        + Pay Interest
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -695,7 +970,7 @@ export default function InterestTab({
                       className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs"
                     >
                       <Share2 className="w-3.5 h-3.5" />
-                      <span>WhatsApp Statement</span>
+                      <span>WhatsApp</span>
                     </button>
                   </div>
                 </div>
