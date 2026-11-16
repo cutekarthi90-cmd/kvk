@@ -1816,7 +1816,11 @@ export const Storage = {
     if (Array.isArray(serverData.deletedIds)) {
       serverData.deletedIds.forEach((id) => Storage.recordDeletedId(id));
     }
+    if (Array.isArray(serverData.deletedGodowns)) {
+      serverData.deletedGodowns.forEach((g) => Storage.recordDeletedGodown(g));
+    }
     const deleted = Storage.getDeletedIds();
+    const deletedGodowns = Storage.getDeletedGodowns();
 
     const mergeById = (localList, serverList) => {
       const map = new Map();
@@ -1866,10 +1870,30 @@ export const Storage = {
         }
       });
 
+      // Strip any deleted godowns from item.godownInitialStock across all items
+      itemMap.forEach((item, id) => {
+        if (item && item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+          let changed = false;
+          const cleanStock = { ...item.godownInitialStock };
+          deletedGodowns.forEach((dg) => {
+            if (cleanStock[dg] !== undefined) {
+              delete cleanStock[dg];
+              changed = true;
+            }
+          });
+          if (changed) {
+            const newTotal = Object.values(cleanStock).reduce((s, v) => s + (Number(v) || 0), 0);
+            itemMap.set(id, { ...item, godownInitialStock: cleanStock, initialStock: newTotal });
+          }
+        }
+      });
+
       const res = Array.from(itemMap.values());
       localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(res));
       return res;
     })();
+
+    const cleanGodowns = (Array.isArray(serverData.godowns) ? serverData.godowns : Storage.getGodowns()).filter((g) => !deletedGodowns.includes((g || '').trim()));
 
     return {
       shop: serverData.shop || Storage.getShopSettings(),
@@ -1893,7 +1917,7 @@ export const Storage = {
       expenses: mergeById(Storage.getExpenses(), serverData.expenses),
       interestLoans: mergeById(Storage.getInterestLoans(), serverData.interestLoans),
       interestPayments: mergeById(Storage.getInterestPayments(), serverData.interestPayments),
-      godowns: Array.isArray(serverData.godowns) ? serverData.godowns : Storage.getGodowns(),
+      godowns: cleanGodowns,
     };
   },
 

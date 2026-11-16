@@ -51,10 +51,12 @@ export default function PurchaseScreen({
   }, [externalGodowns, localGodowns]);
 
   const [selectedGodown, setSelectedGodown] = useState(() => {
+    const deleted = Storage.getDeletedGodowns();
     const fromProps = Array.isArray(externalGodowns) ? externalGodowns : [];
     const saved = Storage.getGodowns();
     const fromPurchases = (purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
-    const arr = Array.from(new Set([...fromProps, ...saved, ...fromPurchases].filter(Boolean)));
+    const arr = Array.from(new Set([...fromProps, ...saved, ...fromPurchases].filter(Boolean)))
+      .filter((g) => !deleted.includes((g || '').trim()));
     return arr.length > 0 ? arr[0] : '';
   });
 

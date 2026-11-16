@@ -39,7 +39,9 @@ let lastKnownHash = '';
 
 const computeFullStateHash = (d) => {
   if (!d) return '';
-  return `${d.lastUpdated || ''}_s${d.sales?.length || 0}_r${d.receipts?.length || 0}_p${d.purchases?.length || 0}_c${d.customers?.length || 0}_i${d.items?.length || 0}_e${d.expenses?.length || 0}_il${d.interestLoans?.length || 0}_ip${d.interestPayments?.length || 0}_sp${d.supplierPayments?.length || 0}_sr${d.salesReturns?.length || 0}_sup${d.suppliers?.length || 0}_del${(d.deletedIds || []).length}_g${(d.godowns || []).length}`;
+  const gStr = (d.godowns || []).join(',');
+  const dgStr = (d.deletedGodowns || []).join(',');
+  return `${d.lastUpdated || ''}_s${d.sales?.length || 0}_r${d.receipts?.length || 0}_p${d.purchases?.length || 0}_c${d.customers?.length || 0}_i${d.items?.length || 0}_e${d.expenses?.length || 0}_il${d.interestLoans?.length || 0}_ip${d.interestPayments?.length || 0}_sp${d.supplierPayments?.length || 0}_sr${d.salesReturns?.length || 0}_sup${d.suppliers?.length || 0}_del${(d.deletedIds || []).length}_g${gStr}_dg${dgStr}`;
 };
 
 export const SyncService = {

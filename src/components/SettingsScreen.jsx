@@ -50,7 +50,11 @@ export default function SettingsScreen({
   const activeGodownsList = useMemo(() => {
     const fromProps = Array.isArray(godowns) ? godowns : [];
     const fromStorage = Storage.getGodowns();
-    const combined = Array.from(new Set([...fromProps, ...fromStorage].filter(Boolean)));
+    const list = [...fromProps, ...fromStorage];
+    if (!deletedGodowns.includes('கடை / பொது இருப்பு')) {
+      list.unshift('கடை / பொது இருப்பு');
+    }
+    const combined = Array.from(new Set(list.filter(Boolean)));
     return combined.filter((g) => !deletedGodowns.includes((g || '').trim()));
   }, [godowns, deletedGodowns]);
   const [serverUrlInput, setServerUrlInput] = useState(() => getServerUrl());

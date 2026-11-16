@@ -224,6 +224,7 @@ export default function App() {
     const updatedGodowns = (godowns || []).filter((g) => (g || '').trim() !== cleanName);
     setGodowns(updatedGodowns);
     Storage.saveGodowns(updatedGodowns);
+    SyncService.dispatch('DELETE_GODOWN', cleanName);
     SyncService.dispatch('SAVE_GODOWNS', updatedGodowns);
 
     // 3. Clean up from item godownInitialStock

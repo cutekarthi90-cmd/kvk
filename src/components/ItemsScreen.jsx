@@ -58,8 +58,8 @@ export default function ItemsScreen({
   // All known godowns pool
   const allKnownGodowns = useMemo(() => {
     const deleted = Storage.getDeletedGodowns();
-    const list = ['கடை / பொது இருப்பு'];
-    const seen = new Set(['கடை / பொது இருப்பு']);
+    const list = [];
+    const seen = new Set();
     const pool = [
       ...(Array.isArray(godowns) ? godowns : []),
       ...Storage.getGodowns(),
@@ -70,6 +70,10 @@ export default function ItemsScreen({
         Object.keys(item.godownInitialStock).forEach((g) => pool.push(g));
       }
     });
+    // Default placeholder only if user has never deleted it
+    if (!deleted.includes('கடை / பொது இருப்பு')) {
+      pool.push('கடை / பொது இருப்பு');
+    }
     pool.forEach((g) => {
       const clean = (g || '').trim();
       if (clean && !deleted.includes(clean) && !seen.has(clean)) {
@@ -96,6 +100,9 @@ export default function ItemsScreen({
         });
       }
     });
+    if (!deleted.includes('கடை / பொது இருப்பு') && (godowns || []).length === 0) {
+      pool.push('கடை / பொது இருப்பு');
+    }
     pool.forEach((g) => {
       const clean = (g || '').trim();
       if (clean && !deleted.includes(clean) && !seen.has(clean)) {
@@ -464,7 +471,7 @@ export default function ItemsScreen({
               <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
                 {availableGodowns.map((g) => {
                   const isActive = selectedStockGodown === g.id;
-                  const isCustom = g.id !== 'ALL' && g.id !== 'கடை / பொது இருப்பு';
+                  const isCustom = g.id !== 'ALL';
                   return (
                     <div
                       key={g.id}
@@ -658,7 +665,7 @@ export default function ItemsScreen({
             {/* List of all known godowns with inputs */}
             <div className="space-y-1.5 max-h-44 overflow-y-auto">
               {allKnownGodowns.map((g) => {
-                const isCustom = g !== 'கடை / பொது இருப்பு';
+                const isCustom = true;
                 return (
                   <div key={g} className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200">
                     <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 min-w-0 truncate">

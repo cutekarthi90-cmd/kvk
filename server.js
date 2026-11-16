@@ -1297,13 +1297,36 @@ const readDB = () => {
     if (!Array.isArray(parsed.deletedIds)) {
       parsed.deletedIds = [];
     }
+    if (!Array.isArray(parsed.deletedGodowns)) {
+      parsed.deletedGodowns = [];
+    }
     if (!Array.isArray(parsed.godowns)) {
       const fromPurchases = (parsed.purchases || []).map((p) => (p?.godown || '').trim()).filter(Boolean);
       parsed.godowns = Array.from(new Set(fromPurchases));
     }
+    const delGodownSet = new Set(parsed.deletedGodowns || []);
+    parsed.godowns = (parsed.godowns || []).filter((g) => !delGodownSet.has((g || '').trim()));
     if (Array.isArray(parsed.items)) {
       const delSet = new Set(parsed.deletedIds || []);
-      parsed.items = parsed.items.filter((item) => item && !delSet.has(item.id));
+      parsed.items = parsed.items
+        .filter((item) => item && !delSet.has(item.id))
+        .map((item) => {
+          if (item && item.godownInitialStock && typeof item.godownInitialStock === 'object') {
+            let changed = false;
+            const cleanMap = { ...item.godownInitialStock };
+            delGodownSet.forEach((dg) => {
+              if (cleanMap[dg] !== undefined) {
+                delete cleanMap[dg];
+                changed = true;
+              }
+            });
+            if (changed) {
+              const newTot = Object.values(cleanMap).reduce((s, v) => s + (Number(v) || 0), 0);
+              return { ...item, godownInitialStock: cleanMap, initialStock: newTot };
+            }
+          }
+          return item;
+        });
     } else {
       parsed.items = DEFAULT_DB.items;
     }
@@ -1371,6 +1394,22 @@ const recordDeletedId = (db, id) => {
   if (!id) return;
   if (!Array.isArray(db.deletedIds)) db.deletedIds = [];
   if (!db.deletedIds.includes(id)) db.deletedIds.push(id);
+};
+
+const recordDeletedGodown = (db, name) => {
+  if (!name) return;
+  const clean = (name || '').trim();
+  if (!Array.isArray(db.deletedGodowns)) db.deletedGodowns = [];
+  if (!db.deletedGodowns.includes(clean)) db.deletedGodowns.push(clean);
+  db.godowns = (db.godowns || []).filter((g) => (g || '').trim() !== clean);
+  if (Array.isArray(db.items)) {
+    db.items.forEach((item) => {
+      if (item && item.godownInitialStock && item.godownInitialStock[clean] !== undefined) {
+        delete item.godownInitialStock[clean];
+        item.initialStock = Object.values(item.godownInitialStock).reduce((s, v) => s + (Number(v) || 0), 0);
+      }
+    });
+  }
 };
 
 wss.on('connection', (ws) => {
@@ -1463,8 +1502,12 @@ wss.on('connection', (ws) => {
         } else if (action === 'DELETE_INTEREST_PAYMENT') {
           recordDeletedId(db, payload);
           db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+        } else if (action === 'DELETE_GODOWN') {
+          recordDeletedGodown(db, payload);
         } else if (action === 'SAVE_GODOWNS') {
-          db.godowns = Array.isArray(payload) ? payload : [];
+          const cleanList = (Array.isArray(payload) ? payload : []).map((g) => (g || '').trim()).filter(Boolean);
+          const delGodownSet = new Set(db.deletedGodowns || []);
+          db.godowns = cleanList.filter((g) => !delGodownSet.has(g));
         } else if (action === 'CLIENT_SYNC_STATE') {
           try {
             const clientData = typeof payload === 'string' ? JSON.parse(payload) : payload;
@@ -1475,13 +1518,31 @@ wss.on('connection', (ws) => {
                   if (!db.deletedIds.includes(id)) db.deletedIds.push(id);
                 });
               }
+              if (Array.isArray(clientData.deletedGodowns)) {
+                if (!Array.isArray(db.deletedGodowns)) db.deletedGodowns = [];
+                clientData.deletedGodowns.forEach((g) => {
+                  const clean = (g || '').trim();
+                  if (!db.deletedGodowns.includes(clean)) db.deletedGodowns.push(clean);
+                });
+              }
+              const activeDeletedGodowns = new Set(db.deletedGodowns || []);
               if (Array.isArray(clientData.customers)) {
                 db.customers = mergeCollectionsById(db.customers, clientData.customers.map((c) => ({
                   ...c,
                   name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
                 })), db.deletedIds);
               }
-              if (Array.isArray(clientData.items)) db.items = mergeCollectionsById(db.items, clientData.items, db.deletedIds);
+              if (Array.isArray(clientData.items)) {
+                db.items = mergeCollectionsById(db.items, clientData.items, db.deletedIds);
+                db.items.forEach((item) => {
+                  if (item && item.godownInitialStock) {
+                    activeDeletedGodowns.forEach((dg) => {
+                      delete item.godownInitialStock[dg];
+                    });
+                    item.initialStock = Object.values(item.godownInitialStock).reduce((s, v) => s + (Number(v) || 0), 0);
+                  }
+                });
+              }
               if (Array.isArray(clientData.sales)) db.sales = mergeCollectionsById(db.sales, clientData.sales, db.deletedIds);
               if (Array.isArray(clientData.purchases)) db.purchases = mergeCollectionsById(db.purchases, clientData.purchases, db.deletedIds);
               if (Array.isArray(clientData.receipts)) db.receipts = mergeCollectionsById(db.receipts, clientData.receipts, db.deletedIds);
@@ -1491,7 +1552,9 @@ wss.on('connection', (ws) => {
               if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses, db.deletedIds);
               if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans, db.deletedIds);
               if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments, db.deletedIds);
-              if (Array.isArray(clientData.godowns)) db.godowns = clientData.godowns;
+              if (Array.isArray(clientData.godowns)) {
+                db.godowns = clientData.godowns.filter((g) => !activeDeletedGodowns.has((g || '').trim()));
+              }
             }
           } catch (e) {
             console.error('Error syncing client state:', e);
@@ -1582,8 +1645,12 @@ app.post('/api/action', (req, res) => {
   } else if (action === 'DELETE_INTEREST_PAYMENT') {
     recordDeletedId(db, payload);
     db.interestPayments = (db.interestPayments || []).filter((p) => p.id !== payload);
+  } else if (action === 'DELETE_GODOWN') {
+    recordDeletedGodown(db, payload);
   } else if (action === 'SAVE_GODOWNS') {
-    db.godowns = Array.isArray(payload) ? payload : [];
+    const cleanList = (Array.isArray(payload) ? payload : []).map((g) => (g || '').trim()).filter(Boolean);
+    const delGodownSet = new Set(db.deletedGodowns || []);
+    db.godowns = cleanList.filter((g) => !delGodownSet.has(g));
   } else if (action === 'DELETE_SUPPLIER_PAYMENT') {
     recordDeletedId(db, payload);
     db.supplierPayments = (db.supplierPayments || []).filter((p) => p.id !== payload);
@@ -1597,13 +1664,31 @@ app.post('/api/action', (req, res) => {
             if (!db.deletedIds.includes(id)) db.deletedIds.push(id);
           });
         }
+        if (Array.isArray(clientData.deletedGodowns)) {
+          if (!Array.isArray(db.deletedGodowns)) db.deletedGodowns = [];
+          clientData.deletedGodowns.forEach((g) => {
+            const clean = (g || '').trim();
+            if (!db.deletedGodowns.includes(clean)) db.deletedGodowns.push(clean);
+          });
+        }
+        const activeDeletedGodowns = new Set(db.deletedGodowns || []);
         if (Array.isArray(clientData.customers)) {
           db.customers = mergeCollectionsById(db.customers, clientData.customers.map((c) => ({
             ...c,
             name: CUSTOMER_NAME_TAMIL_MAP[c.name] || c.name,
           })), db.deletedIds);
         }
-        if (Array.isArray(clientData.items)) db.items = mergeCollectionsById(db.items, clientData.items, db.deletedIds);
+        if (Array.isArray(clientData.items)) {
+          db.items = mergeCollectionsById(db.items, clientData.items, db.deletedIds);
+          db.items.forEach((item) => {
+            if (item && item.godownInitialStock) {
+              activeDeletedGodowns.forEach((dg) => {
+                delete item.godownInitialStock[dg];
+              });
+              item.initialStock = Object.values(item.godownInitialStock).reduce((s, v) => s + (Number(v) || 0), 0);
+            }
+          });
+        }
         if (Array.isArray(clientData.sales)) db.sales = mergeCollectionsById(db.sales, clientData.sales, db.deletedIds);
         if (Array.isArray(clientData.purchases)) db.purchases = mergeCollectionsById(db.purchases, clientData.purchases, db.deletedIds);
         if (Array.isArray(clientData.receipts)) db.receipts = mergeCollectionsById(db.receipts, clientData.receipts, db.deletedIds);
@@ -1613,7 +1698,9 @@ app.post('/api/action', (req, res) => {
         if (Array.isArray(clientData.expenses)) db.expenses = mergeCollectionsById(db.expenses, clientData.expenses, db.deletedIds);
         if (Array.isArray(clientData.interestLoans)) db.interestLoans = mergeCollectionsById(db.interestLoans, clientData.interestLoans, db.deletedIds);
         if (Array.isArray(clientData.interestPayments)) db.interestPayments = mergeCollectionsById(db.interestPayments, clientData.interestPayments, db.deletedIds);
-        if (Array.isArray(clientData.godowns)) db.godowns = clientData.godowns;
+        if (Array.isArray(clientData.godowns)) {
+          db.godowns = clientData.godowns.filter((g) => !activeDeletedGodowns.has((g || '').trim()));
+        }
       }
     } catch (e) {
       console.error('Error syncing client state:', e);
