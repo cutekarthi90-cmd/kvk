@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShoppingCart, Receipt, Truck, BookOpen, Package, Settings } from 'lucide-react';
 
-export default function BottomNav({ activeTab, setActiveTab }) {
+export default function BottomNav({ activeTab, setActiveTab, dueInterestCount = 0 }) {
   const tabs = [
     { id: 'sales', label: 'Sales', icon: ShoppingCart },
     { id: 'receipts', label: 'Receipt', icon: Receipt },
@@ -28,11 +28,16 @@ export default function BottomNav({ activeTab, setActiveTab }) {
               }`}
             >
               <div
-                className={`p-1 rounded-lg transition-transform ${
+                className={`p-1 rounded-lg transition-transform relative ${
                   isActive ? 'bg-blue-50 scale-105' : ''
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.5]' : 'stroke-2'}`} />
+                {tab.id === 'ledger' && dueInterestCount > 0 && (
+                  <span className="absolute -top-1 -right-1.5 bg-rose-600 text-white text-[8px] font-black w-3.5 h-3.5 rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                    {dueInterestCount}
+                  </span>
+                )}
               </div>
               <span className="text-[10px] mt-0.5 tracking-tight truncate w-full text-center">{tab.label}</span>
             </button>

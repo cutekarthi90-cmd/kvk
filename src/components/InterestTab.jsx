@@ -16,6 +16,8 @@ import {
   X,
   CreditCard,
   RotateCcw,
+  Bell,
+  AlertTriangle,
 } from 'lucide-react';
 import { Storage } from '../services/storage';
 import { formatCurrency, formatDate } from '../services/pdfService';
@@ -82,6 +84,129 @@ export const calculateLoanMetrics = (loan, loanPayments = []) => {
   };
 };
 
+/**
+ * Calculates due date details and triggers reminder 10 days before due date
+ * ONLY when loan.remindMe is enabled (true).
+ */
+export const getLoanDueDetails = (loan, loanPayments = []) => {
+  const p = Number(loan.principalAmount) || 0;
+  const totalPrinRepaid = loanPayments.reduce(
+    (sum, pmt) => sum + (Number(pmt.principalRepaid) || 0),
+    0
+  );
+  const balancePrincipal = Math.max(0, p - totalPrinRepaid);
+  const isClosed = loan.status === 'CLOSED' || (balancePrincipal <= 0 && totalPrinRepaid > 0);
+
+  const remindMe = Boolean(loan.remindMe);
+
+  if (isClosed) {
+    return {
+      remindMe,
+      isClosed: true,
+      isDueSoon: false,
+      isOverdue: false,
+      isDueToday: false,
+      daysRemaining: 999,
+      dueDay: loan.dueDay || 1,
+      nextDueDate: '',
+      nextDueDateFormatted: '',
+      statusText: 'கடன் முடிந்தது (Closed)',
+      monthlyInterest: 0,
+      lenderName: loan.lenderName,
+      lenderPhone: loan.lenderPhone,
+      loanId: loan.id,
+    };
+  }
+
+  // Monthly due day (defaults to the day in startDate or createdAt, or 1)
+  let dueDay = Number(loan.dueDay);
+  if (!dueDay || dueDay < 1 || dueDay > 31) {
+    const sDate = loan.startDate || loan.createdAt;
+    dueDay = sDate ? new Date(sDate).getDate() : 1;
+  }
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth(); // 0-11
+  const todayMidnight = new Date(currentYear, currentMonth, now.getDate());
+
+  // Check if any payment was made in the current calendar month
+  const thisMonthStart = new Date(currentYear, currentMonth, 1);
+  const hasPaidThisMonth = loanPayments.some((pmt) => {
+    if (!pmt.date) return false;
+    const pDate = new Date(pmt.date);
+    return (
+      pDate >= thisMonthStart &&
+      (Number(pmt.interestAmount) > 0 || Number(pmt.principalRepaid) > 0)
+    );
+  });
+
+  const getDaysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+  let targetYear = currentYear;
+  let targetMonth = currentMonth;
+
+  if (hasPaidThisMonth) {
+    // Already paid for this month, next due date falls in next month
+    targetMonth += 1;
+    if (targetMonth > 11) {
+      targetMonth = 0;
+      targetYear += 1;
+    }
+  }
+
+  const maxDay = getDaysInMonth(targetYear, targetMonth);
+  const targetDay = Math.min(dueDay, maxDay);
+  const nextDueDateObj = new Date(targetYear, targetMonth, targetDay);
+
+  const diffMs = nextDueDateObj.getTime() - todayMidnight.getTime();
+  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  const isOverdue = !hasPaidThisMonth && diffDays < 0;
+  const isDueToday = !hasPaidThisMonth && diffDays === 0;
+
+  // Crucial requirement: Remind 10 days before ONLY when Remind Me is given!
+  const isDueSoon = remindMe && !isClosed && diffDays <= 10;
+
+  const yyyy = targetYear;
+  const mm = String(targetMonth + 1).padStart(2, '0');
+  const dd = String(targetDay).padStart(2, '0');
+  const nextDueDateStr = `${yyyy}-${mm}-${dd}`;
+
+  let statusText = '';
+  if (isOverdue) {
+    statusText = `${Math.abs(diffDays)} நாட்கள் தாமதம் (Overdue)`;
+  } else if (isDueToday) {
+    statusText = 'இன்று செலுத்த வேண்டும் (Due Today!)';
+  } else if (diffDays <= 10) {
+    statusText = `இன்னும் ${diffDays} நாட்களில் தவணை (Due in ${diffDays} days)`;
+  } else {
+    statusText = `அடுத்த தவணை: ${dd}/${mm}/${yyyy}`;
+  }
+
+  const monthlyInterest =
+    Number(loan.monthlyInterest) ||
+    ((p * (Number(loan.interestRate) || 0)) / 100);
+
+  return {
+    remindMe,
+    isClosed: false,
+    dueDay,
+    nextDueDate: nextDueDateStr,
+    nextDueDateFormatted: formatDate(nextDueDateStr),
+    daysRemaining: diffDays,
+    isDueSoon,
+    isOverdue,
+    isDueToday,
+    hasPaidThisMonth,
+    statusText,
+    monthlyInterest,
+    lenderName: loan.lenderName,
+    lenderPhone: loan.lenderPhone,
+    loanId: loan.id,
+  };
+};
+
 export default function InterestTab({
   shop = {},
   loans: externalLoans,
@@ -107,6 +232,8 @@ export default function InterestTab({
   const [principalAmount, setPrincipalAmount] = useState('');
   const [interestRate, setInterestRate] = useState('1.5'); // e.g. 1.5% per month (ரூ 1.50 வட்டி)
   const [loanStartDate, setLoanStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [loanDueDay, setLoanDueDay] = useState(() => new Date().getDate());
+  const [loanRemindMe, setLoanRemindMe] = useState(true); // Remind option toggle (10 days before)
   const [loanNotes, setLoanNotes] = useState('');
 
   // Payment Form States
@@ -171,6 +298,18 @@ export default function InterestTab({
     };
   }, [loans, payments]);
 
+  // Upcoming due loans within 10 days (ONLY if remindMe option is enabled)
+  const dueSoonLoans = useMemo(() => {
+    return loans
+      .map((l) => {
+        const loanPmts = payments.filter((p) => p.loanId === l.id);
+        const dueInfo = getLoanDueDetails(l, loanPmts);
+        return { loan: l, ...dueInfo };
+      })
+      .filter((item) => item.isDueSoon)
+      .sort((a, b) => a.daysRemaining - b.daysRemaining);
+  }, [loans, payments]);
+
   // Handle Save New Loan
   const handleSaveLoan = (e) => {
     e.preventDefault();
@@ -186,6 +325,9 @@ export default function InterestTab({
       return;
     }
 
+    const defaultDay = loanStartDate ? new Date(loanStartDate).getDate() : 1;
+    const finalDueDay = Number(loanDueDay) >= 1 && Number(loanDueDay) <= 31 ? Number(loanDueDay) : defaultDay;
+
     const newLoan = {
       id: `loan-${Date.now()}`,
       lenderName: lenderName.trim(),
@@ -194,6 +336,8 @@ export default function InterestTab({
       interestRate: numRate,
       monthlyInterest: (numP * numRate) / 100,
       startDate: loanStartDate,
+      dueDay: finalDueDay,
+      remindMe: Boolean(loanRemindMe), // 10 days before reminder enabled/disabled
       status: 'ACTIVE',
       notes: loanNotes.trim(),
       createdAt: new Date().toISOString(),
@@ -207,12 +351,39 @@ export default function InterestTab({
       Storage.saveInterestLoans(updated);
     }
 
-    showToast('New loan / interest entry saved!');
+    showToast(
+      loanRemindMe
+        ? 'New loan saved with 10-day reminder enabled!'
+        : 'New loan saved successfully!'
+    );
     setLenderName('');
     setLenderPhone('');
     setPrincipalAmount('');
     setLoanNotes('');
     setIsAddingLoan(false);
+  };
+
+  // Toggle Remind Me Option directly on a loan card
+  const handleToggleRemindMe = (loan) => {
+    const nextRemind = !loan.remindMe;
+    const updatedLoan = {
+      ...loan,
+      remindMe: nextRemind,
+    };
+
+    if (onSaveLoan) {
+      onSaveLoan(updatedLoan);
+    } else {
+      const updated = loans.map((l) => (l.id === loan.id ? updatedLoan : l));
+      setInternalLoans(updated);
+      Storage.saveInterestLoans(updated);
+    }
+
+    showToast(
+      nextRemind
+        ? '🔔 10 நாட்களுக்கு முன் நினைவூட்டல் இயக்கப்பட்டது (Reminder ON)'
+        : '🔕 நினைவூட்டல் நிறுத்தப்பட்டது (Reminder OFF)'
+    );
   };
 
   // Toggle Loan Status: ACTIVE <-> CLOSED
@@ -338,6 +509,7 @@ export default function InterestTab({
   const handleShareLoanStatement = (loan) => {
     const loanPayments = payments.filter((p) => p.loanId === loan.id);
     const metrics = calculateLoanMetrics(loan, loanPayments);
+    const dueInfo = getLoanDueDetails(loan, loanPayments);
 
     const historyText = loanPayments
       .slice(0, 5)
@@ -353,6 +525,7 @@ export default function InterestTab({
       `━━━━━━━━━━━━━━━━━━\n` +
       `• Borrowed Date (தொடக்க தேதி): *${formatDate(loan.startDate)}*\n` +
       `• Loan Duration (காலம்): *${metrics.diffDays} நாட்கள் (${metrics.elapsedMonths} மாதங்கள்)*\n` +
+      `• Monthly Due Day (தவணை தேதி): *ஒவ்வொரு மாதமும் ${dueInfo.dueDay}ம் தேதி*\n` +
       `• Initial Principal (அசல்): *Rs. ${metrics.principalAmount.toFixed(2)}*\n` +
       `• Rate of Interest: *${loan.interestRate}% / month*\n` +
       `• Monthly Interest: *Rs. ${metrics.monthlyInterest.toFixed(2)}*\n` +
@@ -395,6 +568,68 @@ export default function InterestTab({
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white text-xs px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
           <CheckCircle className="w-4 h-4 text-amber-400" />
           <span>{toast}</span>
+        </div>
+      )}
+
+      {/* 🔔 10-DAY BEFORE DUE DATE REMINDERS BANNER (Front of Interest Tab) */}
+      {dueSoonLoans.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-rose-500/20 to-amber-500/15 border-2 border-rose-400 rounded-2xl p-3.5 shadow-xs space-y-2.5 animate-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-black text-rose-950 text-xs">
+              <span className="p-1 bg-rose-600 text-white rounded-lg text-xs animate-bounce shadow-2xs">
+                🔔
+              </span>
+              <div>
+                <span className="block font-black text-rose-950">
+                  வரவிருக்கும் வட்டி தவணைகள் (அடுத்த 10 நாட்களுக்குள்)
+                </span>
+                <span className="text-[10px] text-rose-700 font-medium">
+                  10-Day Due Reminder (Remind Me Active)
+                </span>
+              </div>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-2xs">
+              {dueSoonLoans.length} Loans Due
+            </span>
+          </div>
+
+          <div className="space-y-1.5">
+            {dueSoonLoans.map((item) => (
+              <div
+                key={item.loanId}
+                className="bg-white p-2.5 rounded-xl border border-rose-200 flex items-center justify-between text-xs shadow-2xs"
+              >
+                <div className="min-w-0 pr-2">
+                  <div className="font-black text-slate-900 truncate">{item.lenderName}</div>
+                  <div className="text-[11px] font-black text-rose-700 flex items-center gap-1 mt-0.5 flex-wrap">
+                    <Clock className="w-3 h-3 text-rose-600 shrink-0" />
+                    <span>{item.statusText}</span>
+                    <span className="text-slate-400 font-normal">({item.nextDueDateFormatted})</span>
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0 flex items-center gap-2">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">வட்டி</span>
+                    <span className="font-black text-rose-700 text-xs sm:text-sm">
+                      {formatCurrency(item.monthlyInterest)}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPaymentLoanId(item.loanId);
+                      setInterestPaidAmount(String(item.monthlyInterest));
+                      setIsAddingPayment(true);
+                    }}
+                    className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black rounded-lg shadow-2xs active:scale-95 transition-all"
+                  >
+                    + Pay
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -569,7 +804,13 @@ export default function InterestTab({
               <input
                 type="date"
                 value={loanStartDate}
-                onChange={(e) => setLoanStartDate(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLoanStartDate(val);
+                  if (val) {
+                    setLoanDueDay(new Date(val).getDate());
+                  }
+                }}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none"
               />
             </div>
@@ -582,6 +823,45 @@ export default function InterestTab({
                 {formatCurrency(((Number(principalAmount) || 0) * (Number(interestRate) || 0)) / 100)} / mo
               </div>
             </div>
+          </div>
+
+          {/* 🔔 10-DAY REMINDER OPTION (Requested by User) */}
+          <div className="bg-amber-50/90 p-3 rounded-xl border border-amber-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-black text-amber-950 flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={loanRemindMe}
+                  onChange={(e) => setLoanRemindMe(e.target.checked)}
+                  className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                />
+                <span>🔔 10 நாட்களுக்கு முன் நினைவூட்டு (Remind Me 10 Days Before)</span>
+              </label>
+            </div>
+
+            {loanRemindMe && (
+              <div className="flex items-center justify-between pt-1.5 border-t border-amber-200/60 text-xs">
+                <span className="text-[11px] font-bold text-amber-900">
+                  மாத தவணை தேதி (Monthly Due Day):
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={loanDueDay}
+                    onChange={(e) => setLoanDueDay(e.target.value)}
+                    className="w-16 px-2 py-1 bg-white border border-amber-300 rounded-lg text-center font-black text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                  <span className="text-[11px] font-bold text-slate-500">ம் தேதி</span>
+                </div>
+              </div>
+            )}
+            <p className="text-[10px] text-amber-800/80 leading-tight">
+              {loanRemindMe
+                ? `ஒவ்வொரு மாதமும் ${loanDueDay}ம் தேதிக்கு 10 நாட்களுக்கு முன் தானாக நினைவூட்டும்.`
+                : 'நினைவூட்டல் ஆஃப் செய்யப்பட்டுள்ளது. (Remind Me off)'}
+            </p>
           </div>
 
           <div>
@@ -802,6 +1082,7 @@ export default function InterestTab({
           filteredLoans.map((loan) => {
             const loanPayments = payments.filter((p) => p.loanId === loan.id);
             const metrics = calculateLoanMetrics(loan, loanPayments);
+            const dueInfo = getLoanDueDetails(loan, loanPayments);
 
             return (
               <div
@@ -848,7 +1129,48 @@ export default function InterestTab({
                   </div>
                 </div>
 
-                {/* ACCUMULATED INTEREST & DURATION SUMMARY BOX (User Requested) */}
+                {/* 🔔 DUE DATE & 10-DAY REMINDER ROW */}
+                {!metrics.isClosed && (
+                  <div className="flex items-center justify-between text-xs bg-slate-50 p-2 rounded-xl border border-slate-100 flex-wrap gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-slate-500 font-bold">மாத தவணை:</span>
+                      <span className="font-black text-slate-800">{dueInfo.dueDay}ம் தேதி</span>
+
+                      {loan.remindMe ? (
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                            dueInfo.isDueSoon
+                              ? 'bg-rose-100 text-rose-800 border border-rose-300 animate-pulse'
+                              : 'bg-blue-50 text-blue-800 border border-blue-200'
+                          }`}
+                        >
+                          <Bell className="w-3 h-3 shrink-0" />
+                          <span>{dueInfo.statusText}</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          (நினைவூட்டல் ஆஃப்)
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleRemindMe(loan)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 transition-all active:scale-95 ${
+                        loan.remindMe
+                          ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300'
+                          : 'bg-slate-200 hover:bg-slate-300 text-slate-700 border border-slate-300'
+                      }`}
+                      title="10 நாட்களுக்கு முன் நினைவூட்டு"
+                    >
+                      <Bell className="w-3 h-3" />
+                      <span>{loan.remindMe ? '🔔 Remind Me: ON' : '🔕 Remind Me: OFF'}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* ACCUMULATED INTEREST & DURATION SUMMARY BOX */}
                 <div
                   className={`p-3 rounded-xl border text-xs space-y-2 ${
                     metrics.isClosed

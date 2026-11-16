@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   User,
@@ -42,6 +42,7 @@ export default function LedgerScreen({
   expenses = [],
   interestLoans = [],
   interestPayments = [],
+  initialSubTab,
   onOpenAddCustomer,
   onEditCustomer,
   onDeleteCustomer,
@@ -55,7 +56,13 @@ export default function LedgerScreen({
   onQuickSale,
   onQuickReceipt,
 }) {
-  const [activeLedgerTab, setActiveLedgerTab] = useState('customers'); // 'customers' | 'suppliers' | 'expenses' | 'interest'
+  const [activeLedgerTab, setActiveLedgerTab] = useState(initialSubTab || 'customers'); // 'customers' | 'suppliers' | 'expenses' | 'interest'
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveLedgerTab(initialSubTab);
+    }
+  }, [initialSubTab]);
   const [customerSubTab, setCustomerSubTab] = useState('regular'); // 'regular' | 'qsale' | 'all'
   const [statementFilter, setStatementFilter] = useState('ALL'); // 'ALL' | 'REGULAR' | 'Q_SALE'
   const [search, setSearch] = useState('');

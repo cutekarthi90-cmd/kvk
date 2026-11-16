@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import BottomNav from './components/BottomNav';
 import SaleScreen from './components/SaleScreen';
@@ -11,6 +11,8 @@ import CustomerModal from './components/CustomerModal';
 import { Storage } from './services/storage';
 import { SyncService } from './services/syncService';
 import { subscribeToFirebase } from './services/firebaseService';
+import { getLoanDueDetails } from './components/InterestTab';
+import { formatCurrency } from './services/pdfService';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState('sales');
@@ -32,6 +34,19 @@ export default function App() {
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
   const [preselectedCustomerId, setPreselectedCustomerId] = useState('');
+  const [ledgerSubTab, setLedgerSubTab] = useState('customers');
+
+  // Calculate upcoming due interest loans (10 days before) that have remindMe enabled
+  const dueInterestLoans = useMemo(() => {
+    return (interestLoans || [])
+      .map((l) => {
+        const pmts = (interestPayments || []).filter((p) => p.loanId === l.id);
+        const dueInfo = getLoanDueDetails(l, pmts);
+        return { loan: l, ...dueInfo };
+      })
+      .filter((item) => item.isDueSoon)
+      .sort((a, b) => a.daysRemaining - b.daysRemaining);
+  }, [interestLoans, interestPayments]);
 
   // 1. Initialize Real-Time Multi-Device Sync on mount
   useEffect(() => {
@@ -442,6 +457,40 @@ export default function App() {
         syncStatus={syncStatus}
       />
 
+      {/* 🔔 FRONT INTEREST DUE REMINDER BANNER (10 Days Before, ONLY when Remind Me is given) */}
+      {dueInterestLoans.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-600 via-rose-600 to-amber-700 text-white px-3 py-2 shadow-sm border-b border-rose-800/40">
+          <div className="max-w-md mx-auto flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="p-1.5 bg-white/20 rounded-full shrink-0 text-xs">
+                🔔
+              </span>
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-200 flex items-center gap-1.5">
+                  <span>வட்டி தவணை நினைவூட்டல் (10D Due)</span>
+                  <span className="bg-white text-rose-700 text-[10px] px-1.5 py-0.2 rounded-full font-black">
+                    {dueInterestLoans.length} Due
+                  </span>
+                </div>
+                <div className="text-xs font-black truncate">
+                  {dueInterestLoans[0].lenderName}: {dueInterestLoans[0].statusText} • {formatCurrency(dueInterestLoans[0].monthlyInterest)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                setLedgerSubTab('interest');
+                setActiveTab('ledger');
+              }}
+              className="px-2.5 py-1 bg-white text-rose-700 hover:bg-amber-50 text-xs font-black rounded-lg shadow-xs shrink-0 active:scale-95 transition-all"
+            >
+              பார்க்க / Pay
+            </button>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1 w-full max-w-md mx-auto">
         {activeTab === 'sales' && (
           <SaleScreen
@@ -502,6 +551,7 @@ export default function App() {
             expenses={expenses}
             interestLoans={interestLoans}
             interestPayments={interestPayments}
+            initialSubTab={ledgerSubTab}
             onOpenAddCustomer={handleOpenAddCustomer}
             onEditCustomer={handleOpenEditCustomer}
             onDeleteCustomer={handleDeleteCustomer}
@@ -538,7 +588,11 @@ export default function App() {
         )}
       </main>
 
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
+      <BottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        dueInterestCount={dueInterestLoans.length}
+      />
 
       <CustomerModal
         isOpen={isCustomerModalOpen}
