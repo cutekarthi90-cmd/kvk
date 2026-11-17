@@ -191,9 +191,15 @@ export default function SaleScreen({
           i.id === item.id ? { ...i, qty: i.qty + 1 } : i
         );
       }
-      return [...prev, { ...item, qty: 1 }];
+      return [...prev, { ...item, hsn: item.hsn || item.hsnCode || '', qty: 1 }];
     });
     showToast(`Added ${item.name}`);
+  };
+
+  const handleUpdateHsn = (itemId, newHsn) => {
+    setCart((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, hsn: newHsn } : i))
+    );
   };
 
   const handleUpdateQty = (itemId, newQty) => {
@@ -369,6 +375,7 @@ export default function SaleScreen({
       customerPhone: selectedCustomer?.phone,
       items: cart.map((i) => ({
         ...i,
+        hsn: (i.hsn || i.hsnCode || '').trim(),
         qty: Math.max(1, Number(i.qty) || 1),
         price: Math.max(0, Number(i.price) || 0),
         unit: 'Bag',
@@ -401,6 +408,7 @@ export default function SaleScreen({
       customerPhone: selectedCustomer?.phone,
       items: cart.map((i) => ({
         ...i,
+        hsn: (i.hsn || i.hsnCode || '').trim(),
         qty: Math.max(1, Number(i.qty) || 1),
         price: Math.max(0, Number(i.price) || 0),
         unit: 'Bag',
@@ -887,7 +895,14 @@ export default function SaleScreen({
                 {(selectedPastBill.items || []).map((item, idx) => (
                   <div key={idx} className="p-2 flex items-center justify-between text-xs bg-white">
                     <div>
-                      <span className="font-bold text-slate-800 block">{item.name}</span>
+                      <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <span>{item.name}</span>
+                        {item.hsn && (
+                          <span className="text-[10px] bg-slate-100 text-slate-600 px-1 py-0.2 rounded font-extrabold border border-slate-200">
+                            HSN: {item.hsn}
+                          </span>
+                        )}
+                      </span>
                       <span className="text-[10px] text-slate-400">
                         {item.qty} Bag @ ₹{item.price}
                       </span>
@@ -1296,19 +1311,33 @@ export default function SaleScreen({
                       <div className="text-xs font-black text-slate-900 truncate">
                         {idx + 1}. {item.name}
                       </div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
-                        <span>Rate: ₹</span>
-                        <input
-                          type="number"
-                          value={item.price}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
-                          onBlur={() => {
-                            handleUpdatePrice(item.id, Math.max(0, Number(item.price) || 0));
-                          }}
-                          className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-extrabold focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                        <span>/ {item.unit || 'Bag'}</span>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span>Rate: ₹</span>
+                          <input
+                            type="number"
+                            value={item.price}
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => handleUpdatePrice(item.id, e.target.value)}
+                            onBlur={() => {
+                              handleUpdatePrice(item.id, Math.max(0, Number(item.price) || 0));
+                            }}
+                            className="w-16 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-extrabold focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <span>/ {item.unit || 'Bag'}</span>
+                        </div>
+                        {!isQSale && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-bold text-slate-400">HSN:</span>
+                            <input
+                              type="text"
+                              placeholder="HSN"
+                              value={item.hsn || ''}
+                              onChange={(e) => handleUpdateHsn(item.id, e.target.value)}
+                              className="w-16 bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-800 font-bold text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 

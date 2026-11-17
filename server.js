@@ -65,6 +65,25 @@ const CUSTOMER_NAME_TAMIL_MAP = {
   'Sevur periyasolakaarar': 'சேவூர் பெரியசோளக்காரர்'
 };
 
+const DEFAULT_GRAIN_HSN_MAP = {
+  'லைன் மஞ்சள் சோளம்': '1005',
+  'நாடு மஞ்சள் சோளம்': '1005',
+  'அரியலூர் மஞ்சள் சோளம்': '1005',
+  'சின்ன வெள்ளை சோளம்': '1007',
+  'சிகப்பு சோளம்': '1007',
+  'மாஞ்சோளம்': '1005',
+  'தரக்கனாமி சோளம்': '1007',
+  'மானாவாரி சோளம்': '1007',
+  'பீஜாப்பூர் சோளம்': '1007',
+  'மக்காச்சோளம்': '1005',
+  'காரிச்சோளம்': '1007',
+  'கொல்லு': '0713',
+  'கம்பு': '1008',
+  'தட்டைப்பயறு': '0713',
+  'நரிப்பயறு': '0713',
+  'பச்சைப்பயறு': '0713',
+};
+
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
@@ -1311,6 +1330,9 @@ const readDB = () => {
       parsed.items = parsed.items
         .filter((item) => item && !delSet.has(item.id))
         .map((item) => {
+          if (!item.hsn && DEFAULT_GRAIN_HSN_MAP[item.name]) {
+            item.hsn = DEFAULT_GRAIN_HSN_MAP[item.name];
+          }
           if (item && item.godownInitialStock && typeof item.godownInitialStock === 'object') {
             let changed = false;
             const cleanMap = { ...item.godownInitialStock };

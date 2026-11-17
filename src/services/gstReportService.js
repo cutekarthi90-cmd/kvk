@@ -135,7 +135,7 @@ export const exportMonthlyGSTExcel = (gstData, shop = {}) => {
 
   sales.forEach((s, idx) => {
     const itemsDesc = (s.items || [])
-      .map((i) => `${i.name} (${i.qty} Bag @ Rs.${i.price})`)
+      .map((i) => `${i.name}${i.hsn ? ` [HSN: ${i.hsn}]` : ''} (${i.qty} Bag @ Rs.${i.price})`)
       .join('; ');
     const bagsCount = (s.items || []).reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
 

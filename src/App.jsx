@@ -503,13 +503,15 @@ export default function App() {
               </span>
               <div className="min-w-0">
                 <div className="text-[10px] font-black uppercase tracking-wider text-amber-200 flex items-center gap-1.5">
-                  <span>வட்டி தவணை நினைவூட்டல் (10D Due)</span>
+                  <span>
+                    {dueInterestLoans[0].reminderFrequency === 'ANNUAL' ? 'வருடாந்திர தவணை (Annual 10D Due)' : 'மாதாந்திர தவணை (Monthly 10D Due)'}
+                  </span>
                   <span className="bg-white text-rose-700 text-[10px] px-1.5 py-0.2 rounded-full font-black">
                     {dueInterestLoans.length} Due
                   </span>
                 </div>
                 <div className="text-xs font-black truncate">
-                  {dueInterestLoans[0].lenderName}: {dueInterestLoans[0].statusText} • {formatCurrency(dueInterestLoans[0].monthlyInterest)}
+                  {dueInterestLoans[0].lenderName}: {dueInterestLoans[0].statusText} • {dueInterestLoans[0].reminderFrequency === 'ANNUAL' ? formatCurrency(dueInterestLoans[0].annualInterest) : formatCurrency(dueInterestLoans[0].monthlyInterest)}
                 </div>
               </div>
             </div>

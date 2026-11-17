@@ -18,6 +18,26 @@ export const STORAGE_KEYS = {
   LAST_MODIFIED: 'quickbill_last_modified',
 };
 
+// Default standard HSN codes for agricultural grains of KVK Thaniya Mandi
+export const DEFAULT_GRAIN_HSN_MAP = {
+  'லைன் மஞ்சள் சோளம்': '1005',
+  'நாடு மஞ்சள் சோளம்': '1005',
+  'அரியலூர் மஞ்சள் சோளம்': '1005',
+  'சின்ன வெள்ளை சோளம்': '1007',
+  'சிகப்பு சோளம்': '1007',
+  'மாஞ்சோளம்': '1005',
+  'தரக்கனாமி சோளம்': '1007',
+  'மானாவாரி சோளம்': '1007',
+  'பீஜாப்பூர் சோளம்': '1007',
+  'மக்காச்சோளம்': '1005',
+  'காரிச்சோளம்': '1007',
+  'கொல்லு': '0713',
+  'கம்பு': '1008',
+  'தட்டைப்பயறு': '0713',
+  'நரிப்பயறு': '0713',
+  'பச்சைப்பயறு': '0713',
+};
+
 // Permanent Tamil transliteration map for KVK Mandi customers
 export const CUSTOMER_NAME_TAMIL_MAP = {
   'Vembomdampalayam sivalingam': 'வேம்பாண்டாம்பாளையம் சிவலிங்கம்',
@@ -1226,12 +1246,20 @@ export const Storage = {
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed
             .filter((item) => item && !deleted.includes(item.id))
-            .map((item) => ({ ...item, unit: item.unit || 'Bag' }));
+            .map((item) => ({
+              ...item,
+              unit: item.unit || 'Bag',
+              hsn: item.hsn || item.hsnCode || DEFAULT_GRAIN_HSN_MAP[item.name] || '',
+            }));
         }
       }
       return DEFAULT_ITEMS
         .filter((item) => item && !deleted.includes(item.id))
-        .map((item) => ({ ...item, unit: item.unit || 'Bag' }));
+        .map((item) => ({
+          ...item,
+          unit: item.unit || 'Bag',
+          hsn: item.hsn || item.hsnCode || DEFAULT_GRAIN_HSN_MAP[item.name] || '',
+        }));
     } catch {
       return DEFAULT_ITEMS;
     }
@@ -1858,7 +1886,11 @@ export const Storage = {
       // Start with local items (ignoring deleted)
       (Storage.getItems() || []).forEach((i) => {
         if (i && i.id && !deleted.includes(i.id)) {
-          itemMap.set(i.id, { ...i, unit: i.unit || 'Bag' });
+          itemMap.set(i.id, {
+            ...i,
+            unit: i.unit || 'Bag',
+            hsn: i.hsn || i.hsnCode || DEFAULT_GRAIN_HSN_MAP[i.name] || '',
+          });
         }
       });
 
@@ -1866,7 +1898,8 @@ export const Storage = {
       (serverData.items || []).forEach((i) => {
         if (i && i.id && !deleted.includes(i.id)) {
           const existing = itemMap.get(i.id);
-          itemMap.set(i.id, existing ? { ...existing, ...i, unit: i.unit || existing.unit || 'Bag' } : { ...i, unit: i.unit || 'Bag' });
+          const finalHsn = i.hsn || i.hsnCode || (existing && (existing.hsn || existing.hsnCode)) || DEFAULT_GRAIN_HSN_MAP[i.name] || '';
+          itemMap.set(i.id, existing ? { ...existing, ...i, unit: i.unit || existing.unit || 'Bag', hsn: finalHsn } : { ...i, unit: i.unit || 'Bag', hsn: finalHsn });
         }
       });
 

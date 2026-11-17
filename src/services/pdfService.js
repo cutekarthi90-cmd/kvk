@@ -143,17 +143,31 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
   doc.setTextColor(30, 41, 59);
 
   // --- Items Table ---
-  const tableData = (sale.items || []).map((item, index) => [
-    index + 1,
-    item.name,
-    `${item.qty} ${item.unit || 'Nos'}`,
-    Number(item.price).toFixed(2),
-    (Number(item.qty) * Number(item.price)).toFixed(2),
-  ]);
+  const hasHsn = !isQ || (sale.items || []).some((i) => i.hsn || i.hsnCode);
+
+  const head = hasHsn
+    ? [['#', 'Item / Particulars Description', 'HSN/SAC', 'Qty / Weight', 'Rate (Rs.)', 'Amount (Rs.)']]
+    : [['#', 'Item / Particulars Description', 'Qty / Weight', 'Rate (Rs.)', 'Amount (Rs.)']];
+
+  const tableData = (sale.items || []).map((item, index) => {
+    const row = [
+      index + 1,
+      item.name,
+    ];
+    if (hasHsn) {
+      row.push(item.hsn || item.hsnCode || '-');
+    }
+    row.push(
+      `${item.qty} ${item.unit || 'Bag'}`,
+      Number(item.price).toFixed(2),
+      (Number(item.qty) * Number(item.price)).toFixed(2)
+    );
+    return row;
+  });
 
   autoTable(doc, {
     startY: startMetaY + 29,
-    head: [['#', 'Item / Particulars Description', 'Qty / Weight', 'Rate (Rs.)', 'Amount (Rs.)']],
+    head,
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -163,13 +177,22 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
       halign: 'left',
       fontSize: 8.5,
     },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 'auto', halign: 'left' },
-      2: { cellWidth: 26, halign: 'center' },
-      3: { cellWidth: 28, halign: 'right' },
-      4: { cellWidth: 32, halign: 'right' },
-    },
+    columnStyles: hasHsn
+      ? {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 'auto', halign: 'left' },
+          2: { cellWidth: 20, halign: 'center' },
+          3: { cellWidth: 24, halign: 'center' },
+          4: { cellWidth: 26, halign: 'right' },
+          5: { cellWidth: 28, halign: 'right' },
+        }
+      : {
+          0: { cellWidth: 10, halign: 'center' },
+          1: { cellWidth: 'auto', halign: 'left' },
+          2: { cellWidth: 26, halign: 'center' },
+          3: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 32, halign: 'right' },
+        },
     styles: {
       fontSize: 8.5,
       cellPadding: 3,

@@ -33,6 +33,7 @@ export default function ItemsScreen({
   const [editingItem, setEditingItem] = useState(null);
   const [isAdding, setIsAdding] = useState(false);
   const [name, setName] = useState('');
+  const [hsn, setHsn] = useState('');
   const [price, setPrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [initialStock, setInitialStock] = useState('0');
@@ -186,6 +187,7 @@ export default function ItemsScreen({
     setIsAdding(true);
     setEditingItem(null);
     setName('');
+    setHsn('');
     setPrice('');
     setPurchasePrice('');
     setInitialStock('0');
@@ -199,6 +201,7 @@ export default function ItemsScreen({
     setEditingItem(item);
     setIsAdding(false);
     setName(item.name);
+    setHsn(item.hsn || item.hsnCode || '');
     setPrice(String(item.price));
     setPurchasePrice(item.purchasePrice ? String(item.purchasePrice) : '');
     setInitialStock(item.initialStock !== undefined ? String(item.initialStock) : '0');
@@ -260,6 +263,7 @@ export default function ItemsScreen({
           ? {
               ...i,
               name: name.trim(),
+              hsn: hsn.trim(),
               price: numPrice,
               purchasePrice: numPurchase,
               initialStock: finalInitialStock,
@@ -274,6 +278,7 @@ export default function ItemsScreen({
       const newItem = {
         id: `item-${Date.now()}`,
         name: name.trim(),
+        hsn: hsn.trim(),
         price: numPrice,
         purchasePrice: numPurchase,
         initialStock: finalInitialStock,
@@ -591,18 +596,32 @@ export default function ItemsScreen({
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-              Cost / Purchase Price (₹ per Bag)
-            </label>
-            <input
-              type="number"
-              placeholder="Optional (e.g. ₹4000)"
-              value={purchasePrice}
-              onFocus={(e) => e.target.select()}
-              onChange={(e) => setPurchasePrice(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                Cost / Purchase Price (₹)
+              </label>
+              <input
+                type="number"
+                placeholder="Optional (e.g. 4000)"
+                value={purchasePrice}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setPurchasePrice(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
+                HSN / SAC Code (வரி குறியீடு)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. 1005, 1202"
+                value={hsn}
+                onChange={(e) => setHsn(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
           </div>
 
           {/* Godown Wise Initial Stock Section */}
@@ -774,6 +793,11 @@ export default function ItemsScreen({
                       <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">
                         per Bag (50kg)
                       </span>
+                      {item.hsn && (
+                        <span className="text-[10px] bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded font-extrabold">
+                          HSN: {item.hsn}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
