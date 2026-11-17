@@ -66,22 +66,34 @@ const CUSTOMER_NAME_TAMIL_MAP = {
 };
 
 const DEFAULT_GRAIN_HSN_MAP = {
-  'லைன் மஞ்சள் சோளம்': '1005',
-  'நாடு மஞ்சள் சோளம்': '1005',
-  'அரியலூர் மஞ்சள் சோளம்': '1005',
-  'சின்ன வெள்ளை சோளம்': '1007',
-  'சிகப்பு சோளம்': '1007',
-  'மாஞ்சோளம்': '1005',
-  'தரக்கனாமி சோளம்': '1007',
-  'மானாவாரி சோளம்': '1007',
-  'பீஜாப்பூர் சோளம்': '1007',
-  'மக்காச்சோளம்': '1005',
-  'காரிச்சோளம்': '1007',
-  'கொல்லு': '0713',
-  'கம்பு': '1008',
-  'தட்டைப்பயறு': '0713',
-  'நரிப்பயறு': '0713',
-  'பச்சைப்பயறு': '0713',
+  'லைன் மஞ்சள் சோளம்': '10059000',
+  'நாடு மஞ்சள் சோளம்': '10059000',
+  'அரியலூர் மஞ்சள் சோளம்': '10059000',
+  'சின்ன வெள்ளை சோளம்': '10079000',
+  'சிகப்பு சோளம்': '10079000',
+  'மாஞ்சோளம்': '10059000',
+  'தரக்கனாமி சோளம்': '10079000',
+  'மானாவாரி சோளம்': '10079000',
+  'பீஜாப்பூர் சோளம்': '10079000',
+  'மக்காச்சோளம்': '10059000',
+  'காரிச்சோளம்': '10079000',
+  'கொல்லு': '07139090',
+  'கம்பு': '10082990',
+  'தட்டைப்பயறு': '07133990',
+  'நரிப்பயறு': '07139090',
+  'பச்சைப்பயறு': '07133190',
+};
+
+const normalizeTo8DigitHSN = (name, hsn) => {
+  const clean = (hsn || '').toString().trim();
+  if (clean.length === 8) return clean;
+  if (name && DEFAULT_GRAIN_HSN_MAP[name]) return DEFAULT_GRAIN_HSN_MAP[name];
+  if (clean === '1005') return '10059000';
+  if (clean === '1007') return '10079000';
+  if (clean === '1008') return '10082990';
+  if (clean === '0713' || clean === '713') return '07139090';
+  if (clean.length > 0 && clean.length < 8) return clean.padEnd(8, '0');
+  return clean;
 };
 
 if (!fs.existsSync(DATA_DIR)) {
@@ -1330,9 +1342,7 @@ const readDB = () => {
       parsed.items = parsed.items
         .filter((item) => item && !delSet.has(item.id))
         .map((item) => {
-          if (!item.hsn && DEFAULT_GRAIN_HSN_MAP[item.name]) {
-            item.hsn = DEFAULT_GRAIN_HSN_MAP[item.name];
-          }
+          item.hsn = normalizeTo8DigitHSN(item.name, item.hsn);
           if (item && item.godownInitialStock && typeof item.godownInitialStock === 'object') {
             let changed = false;
             const cleanMap = { ...item.godownInitialStock };

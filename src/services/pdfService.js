@@ -181,10 +181,10 @@ export const generateSaleInvoicePDF = (sale, customer, shop) => {
       ? {
           0: { cellWidth: 10, halign: 'center' },
           1: { cellWidth: 'auto', halign: 'left' },
-          2: { cellWidth: 20, halign: 'center' },
+          2: { cellWidth: 24, halign: 'center' },
           3: { cellWidth: 24, halign: 'center' },
-          4: { cellWidth: 26, halign: 'right' },
-          5: { cellWidth: 28, halign: 'right' },
+          4: { cellWidth: 25, halign: 'right' },
+          5: { cellWidth: 27, halign: 'right' },
         }
       : {
           0: { cellWidth: 10, halign: 'center' },

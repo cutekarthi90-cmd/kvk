@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { generateSaleInvoicePDF, formatCurrency, formatDate } from '../services/pdfService';
 import { openDirectWhatsApp, sendDirectSMS, downloadPdfFile, formatWhatsAppPhone } from '../services/shareService';
-import { Storage, getFinancialYear } from '../services/storage';
+import { Storage, getFinancialYear, normalizeTo8DigitHSN } from '../services/storage';
 
 export default function SaleScreen({
   customers = [],
@@ -191,14 +191,16 @@ export default function SaleScreen({
           i.id === item.id ? { ...i, qty: i.qty + 1 } : i
         );
       }
-      return [...prev, { ...item, hsn: item.hsn || item.hsnCode || '', qty: 1 }];
+      const itemHsn = normalizeTo8DigitHSN(item.name, item.hsn || item.hsnCode);
+      return [...prev, { ...item, hsn: itemHsn, qty: 1 }];
     });
     showToast(`Added ${item.name}`);
   };
 
   const handleUpdateHsn = (itemId, newHsn) => {
+    const cleanDigits = (newHsn || '').replace(/\D/g, '').slice(0, 8);
     setCart((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, hsn: newHsn } : i))
+      prev.map((i) => (i.id === itemId ? { ...i, hsn: cleanDigits } : i))
     );
   };
 
@@ -1328,13 +1330,14 @@ export default function SaleScreen({
                         </div>
                         {!isQSale && (
                           <div className="flex items-center gap-1">
-                            <span className="font-bold text-slate-400">HSN:</span>
+                            <span className="font-bold text-slate-400 text-[10px]">HSN:</span>
                             <input
                               type="text"
-                              placeholder="HSN"
+                              placeholder="8-digit HSN"
+                              maxLength={8}
                               value={item.hsn || ''}
                               onChange={(e) => handleUpdateHsn(item.id, e.target.value)}
-                              className="w-16 bg-white border border-slate-300 rounded px-1 py-0.5 text-slate-800 font-bold text-[10px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-24 bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-900 font-extrabold text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs"
                             />
                           </div>
                         )}

@@ -15,7 +15,7 @@ import {
   Warehouse
 } from 'lucide-react';
 import { formatCurrency } from '../services/pdfService';
-import { Storage } from '../services/storage';
+import { Storage, normalizeTo8DigitHSN } from '../services/storage';
 import StockReportScreen from './StockReportScreen';
 
 export default function ItemsScreen({
@@ -257,13 +257,15 @@ export default function ItemsScreen({
     const hasGodownEntries = Object.keys(godownStockInputs).length > 0;
     const finalInitialStock = hasGodownEntries ? totalFromGodowns : (Number(initialStock) || 0);
 
+    const finalHsn = normalizeTo8DigitHSN(name.trim(), hsn);
+
     if (editingItem) {
       const updated = items.map((i) =>
         i.id === editingItem.id
           ? {
               ...i,
               name: name.trim(),
-              hsn: hsn.trim(),
+              hsn: finalHsn,
               price: numPrice,
               purchasePrice: numPurchase,
               initialStock: finalInitialStock,
@@ -278,7 +280,7 @@ export default function ItemsScreen({
       const newItem = {
         id: `item-${Date.now()}`,
         name: name.trim(),
-        hsn: hsn.trim(),
+        hsn: finalHsn,
         price: numPrice,
         purchasePrice: numPurchase,
         initialStock: finalInitialStock,
@@ -612,13 +614,14 @@ export default function ItemsScreen({
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-                HSN / SAC Code (வரி குறியீடு)
+                HSN Code (8 இலக்கங்கள் / 8 Digits)
               </label>
               <input
                 type="text"
-                placeholder="e.g. 1005, 1202"
+                placeholder="e.g. 10059000, 10079000"
+                maxLength={8}
                 value={hsn}
-                onChange={(e) => setHsn(e.target.value)}
+                onChange={(e) => setHsn(e.target.value.replace(/\D/g, ''))}
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
