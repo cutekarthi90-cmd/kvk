@@ -1689,8 +1689,8 @@ export const Storage = {
     const cust = optCust || Storage.getCustomers().find((c) => c && c.id === customerId);
     const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
-    // For Q-Sale separate view, opening balance is typically attached to regular account unless specified
-    const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
+    // Opening balance is attached to Q-Sale / Estimate account as requested by user
+    const opBal = (type === 'REGULAR') ? 0 : rawOpBal;
 
     let sales = (optSales || Storage.getSales() || []).filter((s) => s && s.customerId === customerId);
     let receipts = (optReceipts || Storage.getReceipts() || []).filter((r) => r && r.customerId === customerId);
@@ -1735,7 +1735,7 @@ export const Storage = {
     const cust = optCust || Storage.getCustomers().find((c) => c && c.id === customerId);
     const rawOpBal = Number(cust?.openingBalance) || 0;
     const opType = cust?.openingBalanceType || 'DEBIT';
-    const opBal = (type === 'Q_SALE') ? 0 : rawOpBal;
+    const opBal = (type === 'REGULAR') ? 0 : rawOpBal;
 
     let sales = (optSales || Storage.getSales() || []).filter((s) => s && s.customerId === customerId);
     let receipts = (optReceipts || Storage.getReceipts() || []).filter((r) => r && r.customerId === customerId);
@@ -1753,7 +1753,7 @@ export const Storage = {
 
     const transactions = [];
 
-    // 1. Opening Balance Transaction (shown in ALL or REGULAR)
+    // 1. Opening Balance Transaction (shown in ALL or Q_SALE)
     if (opBal > 0) {
       const opDate = cust?.createdAt ? cust.createdAt.split('T')[0] : '2026-01-01';
       transactions.push({
@@ -1762,9 +1762,11 @@ export const Storage = {
         createdAt: cust?.createdAt || '2026-01-01',
         type: 'OPENING',
         refNo: 'OP-BAL',
-        description: 'Opening Balance (பழைய பாக்கி)',
+        description: 'Opening Balance (பழைய பாக்கி - Q Sales)',
         debit: opType === 'DEBIT' ? opBal : 0,
         credit: opType === 'CREDIT' ? opBal : 0,
+        isQSale: true,
+        billType: 'Q_SALE',
       });
     }
 

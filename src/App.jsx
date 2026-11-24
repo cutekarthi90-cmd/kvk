@@ -36,6 +36,8 @@ export default function App() {
   const [preselectedCustomerId, setPreselectedCustomerId] = useState('');
   const [ledgerSubTab, setLedgerSubTab] = useState('customers');
 
+  const [dismissedAlerts, setDismissedAlerts] = useState([]);
+
   // Calculate upcoming due interest loans (10 days before) that have remindMe enabled
   const dueInterestLoans = useMemo(() => {
     return (interestLoans || [])
@@ -44,9 +46,9 @@ export default function App() {
         const dueInfo = getLoanDueDetails(l, pmts);
         return { loan: l, ...dueInfo };
       })
-      .filter((item) => item.isDueSoon)
+      .filter((item) => Boolean(item.remindMe) && !item.isClosed && item.isDueSoon && !dismissedAlerts.includes(item.loanId))
       .sort((a, b) => a.daysRemaining - b.daysRemaining);
-  }, [interestLoans, interestPayments]);
+  }, [interestLoans, interestPayments, dismissedAlerts]);
 
   // 1. Initialize Real-Time Multi-Device Sync on mount
   useEffect(() => {
@@ -516,15 +518,25 @@ export default function App() {
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                setLedgerSubTab('interest');
-                setActiveTab('ledger');
-              }}
-              className="px-2.5 py-1 bg-white text-rose-700 hover:bg-amber-50 text-xs font-black rounded-lg shadow-xs shrink-0 active:scale-95 transition-all"
-            >
-              பார்க்க / Pay
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => {
+                  setLedgerSubTab('interest');
+                  setActiveTab('ledger');
+                }}
+                className="px-2.5 py-1 bg-white text-rose-700 hover:bg-amber-50 text-xs font-black rounded-lg shadow-xs shrink-0 active:scale-95 transition-all"
+              >
+                பார்க்க / Pay
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedAlerts((prev) => [...prev, dueInterestLoans[0].loanId])}
+                className="p-1 rounded-md text-white/80 hover:text-white hover:bg-white/20 text-xs font-black transition-all"
+                title="Dismiss Alert"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
       )}

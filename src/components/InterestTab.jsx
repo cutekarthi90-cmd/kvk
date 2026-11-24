@@ -236,8 +236,8 @@ export const getLoanDueDetails = (loan, loanPayments = []) => {
     }
   }
 
-  // 10 days before reminder (and up to 30 days overdue if not paid)
-  const isDueSoon = remindMe && !isClosed && diffDays <= 10 && diffDays >= -30;
+  // 10 days before reminder: strictly within 0 to 10 days before due date (NOT overdue loans)
+  const isDueSoon = remindMe && !isClosed && diffDays >= 0 && diffDays <= 10;
 
   return {
     remindMe,
@@ -285,7 +285,7 @@ export default function InterestTab({
   const [interestRate, setInterestRate] = useState('1.5'); // e.g. 1.5% per month (ரூ 1.50 வட்டி)
   const [loanStartDate, setLoanStartDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [loanDueDay, setLoanDueDay] = useState(() => new Date().getDate());
-  const [loanRemindMe, setLoanRemindMe] = useState(true); // Remind option toggle (10 days before)
+  const [loanRemindMe, setLoanRemindMe] = useState(false); // Remind option toggle (default false so user opts in)
   const [loanReminderFrequency, setLoanReminderFrequency] = useState('MONTHLY'); // 'MONTHLY' | 'ANNUAL'
   const [loanNotes, setLoanNotes] = useState('');
 

@@ -201,7 +201,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, existingCustome
               </div>
             </div>
             <p className="text-[10px] text-slate-500">
-              Pazhaya balance edhachum irundha inge podalam. Ledger-la idhu add aagi balance kaatum.
+              Pazhaya balance edhachum irundha inge podalam. Idhu Q-Sales / Estimate account-la add aagi balance kaatum.
             </p>
           </div>
 

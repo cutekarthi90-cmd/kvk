@@ -94,8 +94,8 @@ export default function LedgerScreen({
       const allBal = Storage.getCustomerBalance(c.id, 'ALL', sales, receipts, salesReturns, c);
 
       const custSales = (sales || []).filter((s) => s && s.customerId === c.id);
-      const hasRegularSales = custSales.some((s) => !s.isQSale && s.billType !== 'Q_SALE') || (Number(c.openingBalance) > 0);
-      const hasQSales = custSales.some((s) => s.isQSale || s.billType === 'Q_SALE');
+      const hasRegularSales = custSales.some((s) => !s.isQSale && s.billType !== 'Q_SALE');
+      const hasQSales = custSales.some((s) => s.isQSale || s.billType === 'Q_SALE') || (Number(c.openingBalance) > 0);
 
       return {
         ...c,

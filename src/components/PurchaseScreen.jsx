@@ -33,8 +33,8 @@ export default function PurchaseScreen({
 }) {
   const [activeTab, setActiveTab] = useState('create'); // 'create' | 'history'
   
-  // Q-Purchase Toggle (Regular GST vs Q Purchase)
-  const [isQPurchase, setIsQPurchase] = useState(false);
+  // Q-Purchase Toggle (Default to Q Purchase)
+  const [isQPurchase, setIsQPurchase] = useState(true);
 
   const [supplierName, setSupplierName] = useState('');
   const [supplierPhone, setSupplierPhone] = useState('');
@@ -146,7 +146,7 @@ export default function PurchaseScreen({
     setFreightCharges('');
     setDiscount('');
     setNotes('');
-    setIsQPurchase(false);
+    setIsQPurchase(true);
     setDate(new Date().toISOString().split('T')[0]);
     setIsAddingNewSupplier(false);
     setNewGodownInput('');

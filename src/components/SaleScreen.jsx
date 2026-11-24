@@ -49,7 +49,7 @@ export default function SaleScreen({
   const [paidAmount, setPaidAmount] = useState(0);
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [activeView, setActiveView] = useState('create'); // 'create' | 'history' | 'return'
-  const [isQSale, setIsQSale] = useState(false); // Q-Sales Toggle (Regular GST vs Q Sale)
+  const [isQSale, setIsQSale] = useState(true); // Q-Sales Toggle (Default to Q-Sales)
   const [historySearch, setHistorySearch] = useState('');
   const [sharing, setSharing] = useState(false);
   const [toast, setToast] = useState('');
