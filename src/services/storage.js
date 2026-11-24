@@ -1880,7 +1880,13 @@ export const Storage = {
           const fixedName = item.name ? (CUSTOMER_NAME_TAMIL_MAP[item.name] || item.name) : undefined;
           const cleanServerItem = fixedName ? { ...item, name: fixedName } : item;
           if (existing) {
-            map.set(item.id, { ...existing, ...cleanServerItem });
+            // Protect local opening balance and details from being wiped by default server template
+            const preserveOpBal = Number(existing.openingBalance) > 0 && (!cleanServerItem.openingBalance || Number(cleanServerItem.openingBalance) === 0);
+            map.set(item.id, {
+              ...existing,
+              ...cleanServerItem,
+              ...(preserveOpBal ? { openingBalance: existing.openingBalance, openingBalanceType: existing.openingBalanceType || 'DEBIT' } : {}),
+            });
           } else {
             map.set(item.id, cleanServerItem);
           }
@@ -1908,13 +1914,26 @@ export const Storage = {
         }
       });
 
-      // Overlay server items (ignoring deleted)
+      // Overlay server items (ignoring deleted), protecting local stock from zero-wipes
       (serverData.items || []).forEach((i) => {
         if (i && i.id && !deleted.includes(i.id)) {
           const existing = itemMap.get(i.id);
           const rawHsn = i.hsn || i.hsnCode || (existing && (existing.hsn || existing.hsnCode));
           const finalHsn = normalizeTo8DigitHSN(i.name, rawHsn);
-          itemMap.set(i.id, existing ? { ...existing, ...i, unit: i.unit || existing.unit || 'Bag', hsn: finalHsn } : { ...i, unit: i.unit || 'Bag', hsn: finalHsn });
+          const localStock = Number(existing?.initialStock) || 0;
+          const serverStock = Number(i.initialStock) || 0;
+          const finalStock = (serverStock === 0 && localStock > 0) ? localStock : (i.initialStock !== undefined ? i.initialStock : existing?.initialStock);
+          const finalGodownStock = (i.godownInitialStock && Object.keys(i.godownInitialStock).length > 0)
+            ? i.godownInitialStock
+            : (existing?.godownInitialStock || {});
+          itemMap.set(i.id, existing ? {
+            ...existing,
+            ...i,
+            initialStock: finalStock,
+            godownInitialStock: finalGodownStock,
+            unit: i.unit || existing.unit || 'Bag',
+            hsn: finalHsn
+          } : { ...i, unit: i.unit || 'Bag', hsn: finalHsn });
         }
       });
 
@@ -1941,7 +1960,11 @@ export const Storage = {
       return res;
     })();
 
-    const cleanGodowns = (Array.isArray(serverData.godowns) ? serverData.godowns : Storage.getGodowns()).filter((g) => !deletedGodowns.includes((g || '').trim()));
+    // Union local godowns and server godowns so custom added godowns are NEVER lost
+    const cleanGodowns = Array.from(new Set([
+      ...(Storage.getGodowns() || []),
+      ...(Array.isArray(serverData.godowns) ? serverData.godowns : []),
+    ])).filter((g) => g && !deletedGodowns.includes(g.trim()));
 
     return {
       shop: serverData.shop || Storage.getShopSettings(),
