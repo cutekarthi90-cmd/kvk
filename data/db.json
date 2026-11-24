@@ -15,32 +15,31 @@
       "name": "லைன் மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "godownInitialStock": {},
+      "hsn": "10059000"
     },
     {
       "id": "item-1793679523692",
       "name": "நாடு மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 40,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 40
-      }
+      "hsn": "10059000",
+      "godownInitialStock": {}
     },
     {
       "id": "item-1793679610174",
       "name": "அரியலூர் மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 429,
       "unit": "Bag",
+      "hsn": "10059000",
       "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
+        "கின்னிப்பாளையம்": 429
       }
     },
     {
@@ -48,21 +47,22 @@
       "name": "சின்ன வெள்ளை சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "hsn": "10079000",
+      "godownInitialStock": {}
     },
     {
       "id": "item-1793679700075",
       "name": "சிகப்பு சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 1403,
       "unit": "Bag",
+      "hsn": "10079000",
       "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
+        "வாய்ப்பாடி": 884,
+        "கின்னிப்பாளையம்": 519
       }
     },
     {
@@ -70,10 +70,12 @@
       "name": "மாஞ்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 2215,
       "unit": "Bag",
+      "hsn": "10059000",
       "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
+        "கின்னிப்பாளையம்": 622,
+        "வாய்ப்பாடி": 1593
       }
     },
     {
@@ -81,21 +83,21 @@
       "name": "தரக்கனாமி சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "hsn": "10079000"
     },
     {
       "id": "item-1793679794191",
       "name": "மானாவாரி சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 3077,
       "unit": "Bag",
+      "hsn": "10079000",
       "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
+        "கின்னிப்பாளையம்": 1577,
+        "வலசு": 1500
       }
     },
     {
@@ -103,102 +105,90 @@
       "name": "பீஜாப்பூர் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "hsn": "10079000"
     },
     {
       "id": "item-1793679842658",
       "name": "மக்காச்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 40,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 40
-      }
+      "hsn": "10059000"
     },
     {
       "id": "item-1793679862054",
       "name": "காரிச்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 50,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "hsn": "10079000"
     },
     {
       "id": "item-1793679879079",
       "name": "கொல்லு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 90,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 90
-      }
+      "godownInitialStock": {},
+      "hsn": "07139090"
     },
     {
       "id": "item-1793679891344",
       "name": "கம்பு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 200,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 200
-      }
+      "godownInitialStock": {},
+      "hsn": "10082990"
     },
     {
       "id": "item-1793679924242",
       "name": "தட்டைப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 60,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 60
-      }
+      "hsn": "07133990",
+      "godownInitialStock": {}
     },
     {
       "id": "item-1793679991224",
       "name": "நரிப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 60,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 60
-      }
+      "hsn": "07139090",
+      "godownInitialStock": {}
     },
     {
       "id": "item-1793680061589",
       "name": "பச்சைப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 110,
+      "initialStock": 0,
       "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 110
-      }
-    },
-    {
-      "id": "item-1793176205343",
-      "name": "MANJAL CHOLAM",
-      "price": 5000,
-      "purchasePrice": 4250,
-      "initialStock": 50,
-      "unit": "Bag",
-      "godownInitialStock": {
-        "குடோன் 1 (Godown 1)": 50
-      }
+      "hsn": "07133190"
     }
   ],
   "customers": [
+    {
+      "id": "cust-1794937356670",
+      "name": "காங்கயம் S.P.S",
+      "phone": "9442262299",
+      "gstin": "",
+      "address": "",
+      "notes": "",
+      "openingBalance": 1979000,
+      "openingBalanceType": "DEBIT",
+      "createdAt": "2026-11-17T17:42:36.670Z"
+    },
     {
       "id": "cust-1793722744596",
       "name": "ஒரிச்சேரிபுத்தூர்",
@@ -213,9 +203,10 @@
       "id": "cust-1793723781200",
       "name": "புளியம்பட்டி முருகேஷ்",
       "phone": "9600722401",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 546540,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:36:21.200Z"
     },
@@ -223,9 +214,10 @@
       "id": "cust-1793723745402",
       "name": "மைலம்பாடி ராஜா",
       "phone": "9790501510",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 239000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:35:45.402Z"
     },
@@ -243,9 +235,10 @@
       "id": "cust-1793723663418",
       "name": "மைலம்பாடி மணி",
       "phone": "9952259917",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 309000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:34:23.418Z"
     },
@@ -263,9 +256,10 @@
       "id": "cust-1793723579741",
       "name": "குன்னத்தூர் கோபால்",
       "phone": "8056416938",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 28000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:32:59.741Z"
     },
@@ -273,9 +267,10 @@
       "id": "cust-1793723533531",
       "name": "கரடிவாவி ஜெகநாதன்",
       "phone": "9976198345",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 1154180,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:32:13.531Z"
     },
@@ -293,9 +288,10 @@
       "id": "cust-1793723457908",
       "name": "குருசாமி",
       "phone": "9842946954",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 126000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:30:57.908Z"
     },
@@ -303,15 +299,16 @@
       "id": "cust-1793723426619",
       "name": "திருமுருகன் சென்னிமலை",
       "phone": "9865981666",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 414300,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:30:26.619Z"
     },
     {
       "id": "cust-1793723395694",
-      "name": "பூனாட்சி ராச���",
+      "name": "பூனாட்சி ராசு",
       "phone": "8760406911",
       "address": "",
       "notes": "",
@@ -323,9 +320,10 @@
       "id": "cust-1793723356434",
       "name": "சக்தி ஊஞ்சம்பாளையம்",
       "phone": "9842936688",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 665790,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:29:16.434Z"
     },
@@ -333,9 +331,10 @@
       "id": "cust-1793723299011",
       "name": "வேலு",
       "phone": "9750287546",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 41150,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:28:19.011Z"
     },
@@ -343,9 +342,10 @@
       "id": "cust-1793723275007",
       "name": "M.K.M",
       "phone": "9965752785",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 120200,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:27:55.007Z"
     },
@@ -353,9 +353,10 @@
       "id": "cust-1793723249789",
       "name": "கோதை பூனாட்சி",
       "phone": "9965788172",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 124925,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:27:29.789Z"
     },
@@ -363,9 +364,10 @@
       "id": "cust-1793723209173",
       "name": "குன்னத்தூர் சரவணன்",
       "phone": "8760293003",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 407246,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:26:49.173Z"
     },
@@ -373,19 +375,21 @@
       "id": "cust-1793723185408",
       "name": "S.P.S",
       "phone": "9865719575",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 25000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:26:25.408Z"
     },
     {
       "id": "cust-1793723136597",
-      "name": "சன் ���சியனூர்",
+      "name": "சன் நசியனூர்",
       "phone": "9952857072",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 118000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:25:36.597Z"
     },
@@ -393,9 +397,10 @@
       "id": "cust-1793723039726",
       "name": "விநாயகா (டோல்கேட்)",
       "phone": "9994969205",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 84160,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:23:59.726Z"
     },
@@ -717,7 +722,8 @@
       "notes": "",
       "openingBalance": 0,
       "openingBalanceType": "DEBIT",
-      "createdAt": "2026-11-03T16:49:29.114Z"
+      "createdAt": "2026-11-03T16:49:29.114Z",
+      "gstin": ""
     },
     {
       "id": "cust-1793724523601",
@@ -803,9 +809,10 @@
       "id": "cust-1793724049267",
       "name": "கொளத்தூர் சௌந்தர்ராஜன்",
       "phone": "9524784595",
+      "gstin": "",
       "address": "",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 50000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-11-03T16:40:49.267Z"
     },
@@ -1035,39 +1042,12 @@
       "phone": "9715422499",
       "address": "Thulukkanpalayam",
       "notes": "",
-      "openingBalance": 60000,
+      "openingBalance": 0,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-10-28T08:28:14.899Z"
     }
   ],
-  "sales": [
-    {
-      "id": "sale-1793176228139",
-      "invoiceNo": "1",
-      "date": "2026-10-28",
-      "createdAt": "2026-10-28T08:30:28.139Z",
-      "customerId": "cust-1793176094899",
-      "customerName": "Karthik",
-      "customerPhone": "9715422499",
-      "items": [
-        {
-          "id": "item-1793176205343",
-          "name": "MANJAL CHOLAM",
-          "price": 5000,
-          "purchasePrice": 4250,
-          "initialStock": 10,
-          "unit": "Bag",
-          "qty": 12
-        }
-      ],
-      "subTotal": 60000,
-      "discount": 0,
-      "grandTotal": 60000,
-      "paymentStatus": "CREDIT",
-      "paidAmount": 0,
-      "paymentMode": ""
-    }
-  ],
+  "sales": [],
   "receipts": [],
   "purchases": [
     {
@@ -1096,8 +1076,7 @@
       "grandTotal": 706000,
       "paymentStatus": "UNPAID",
       "notes": "",
-      "createdAt": "2026-11-11T15:18:30.076Z",
-      "godown": "குடோன் 1 (Godown 1)"
+      "createdAt": "2026-11-11T15:18:30.076Z"
     },
     {
       "id": "pur-1794410425788",
@@ -1125,12 +1104,17 @@
       "grandTotal": 537850,
       "paymentStatus": "UNPAID",
       "notes": "",
-      "createdAt": "2026-11-11T15:20:25.788Z",
-      "godown": "குடோன் 1 (Godown 1)"
+      "createdAt": "2026-11-11T15:20:25.788Z"
     }
   ],
-  "lastUpdated": "2026-11-24T11:18:03.457Z_restored",
   "suppliers": [
+    {
+      "id": "sup-1794410310075",
+      "name": "OM Siva sathya traders panruti",
+      "phone": "9677829910",
+      "gstin": "33DBFPM7149D1ZQ",
+      "openingBalance": 0
+    },
     {
       "id": "sup-1793803586539",
       "name": "Karthik",
@@ -1145,13 +1129,6 @@
       "id": "sup-2",
       "name": "Murugan Grains Kangayam",
       "phone": "9443354321"
-    },
-    {
-      "id": "sup-1794410310075",
-      "name": "OM Siva sathya traders panruti",
-      "phone": "9677829910",
-      "gstin": "33DBFPM7149D1ZQ",
-      "openingBalance": 0
     },
     {
       "id": "sup-1793882542135",
@@ -1185,18 +1162,7 @@
       "notes": ""
     }
   ],
-  "salesReturns": [
-    {
-      "id": "v-ret",
-      "test": true
-    },
-    {
-      "id": "test-5-1794561047943",
-      "name": "Sync Test",
-      "godown": "குடோன் 1 (Godown 1)",
-      "date": "2026-11-13"
-    }
-  ],
+  "salesReturns": [],
   "expenses": [
     {
       "id": "exp-1793775787661",
@@ -1221,18 +1187,58 @@
   ],
   "interestLoans": [
     {
-      "id": "loan-1793960202277",
-      "lenderName": "M.N.A பாலு",
-      "lenderPhone": "9842921972",
-      "principalAmount": 1100000,
-      "interestRate": 1.5,
-      "monthlyInterest": 16500,
-      "startDate": "2026-08-15",
-      "dueDay": 15,
-      "remindMe": true,
-      "reminderFrequency": "MONTHLY",
+      "id": "loan-1794751334167",
+      "lenderName": "சென்னியங்கிரிவலசு - தங்கம்",
+      "lenderPhone": "",
+      "principalAmount": 940000,
+      "interestRate": 0.9167,
+      "monthlyInterest": 8616.98,
+      "startDate": "2026-04-18",
       "notes": "",
-      "createdAt": "2026-11-06T10:16:42.278Z"
+      "createdAt": "2026-11-15T14:02:14.167Z",
+      "remindMe": true,
+      "reminderFrequency": "ANNUAL"
+    },
+    {
+      "id": "loan-1794752035176",
+      "lenderName": "Indian Bank",
+      "lenderPhone": "",
+      "principalAmount": 685000,
+      "interestRate": 0.7333,
+      "monthlyInterest": 5023.105,
+      "startDate": "2025-11-26",
+      "notes": "",
+      "createdAt": "2026-11-15T14:13:55.176Z",
+      "remindMe": true,
+      "reminderFrequency": "ANNUAL"
+    },
+    {
+      "id": "loan-1794933840083",
+      "lenderName": "வாய்ப்பாடி வங்கி - தங்கம்",
+      "lenderPhone": "",
+      "principalAmount": 450000,
+      "interestRate": 0.9167,
+      "monthlyInterest": 4125.15,
+      "startDate": "2026-11-13",
+      "dueDay": 13,
+      "remindMe": true,
+      "reminderFrequency": "ANNUAL",
+      "status": "ACTIVE",
+      "notes": "",
+      "createdAt": "2026-11-17T16:44:00.083Z"
+    },
+    {
+      "id": "loan-1794750187006",
+      "lenderName": "சென்னியங்கிரிவலசு - தங்கம்",
+      "lenderPhone": "",
+      "principalAmount": 340000,
+      "interestRate": 0.9167,
+      "monthlyInterest": 3116.78,
+      "startDate": "2026-04-18",
+      "notes": "",
+      "createdAt": "2026-11-15T13:43:07.006Z",
+      "remindMe": true,
+      "reminderFrequency": "ANNUAL"
     }
   ],
   "interestPayments": [
@@ -1260,6 +1266,16 @@
       "notes": "",
       "createdAt": "2026-11-06T10:19:11.442Z"
     }
+  ],
+  "godowns": [
+    "கின்னிப்பாளையம்",
+    "வாய்ப்பாடி",
+    "வலசு"
+  ],
+  "deletedGodowns": [
+    "Jk",
+    "கடை / பொது இருப்பு",
+    "JK"
   ],
   "deletedIds": [
     "cust-karthik",
@@ -1306,9 +1322,32 @@
     "loan-1794299631529",
     "exp-1794302198642",
     "exp-1794299397041",
-    "v-rcpt"
+    "v-rcpt",
+    "test-1-1794561047543",
+    "v-pur",
+    "v-sale",
+    "test-0-1794561047437",
+    "item-1793176205343",
+    "v-pay",
+    "test-4-1794561047844",
+    "v-loan",
+    "test-3-1794561047744",
+    "loan-1793960202277",
+    "pur-1794649693983",
+    "pur-1794651319540",
+    "pur-1794649482351",
+    "v-exp",
+    "test-2-1794561047643",
+    "test-5-1794561047943",
+    "v-ret",
+    "sale-1793176228139",
+    "loan-1794815238125",
+    "loan-1794815953700",
+    "loan-1794820194700",
+    "inpay-1794820221544",
+    "sale-1794827242304",
+    "loan-1794749902922",
+    "cust-1794938620431"
   ],
-  "godowns": [
-    "குடோன் 1 (Godown 1)"
-  ]
+  "lastUpdated": "2026-11-24T17:25:00.000Z_live_restored"
 }
