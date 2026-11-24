@@ -241,6 +241,7 @@ export default function SaleScreen({
     setPaymentStatus('CREDIT');
     setPaidAmount(0);
     setDate(new Date().toISOString().split('T')[0]);
+    setIsQSale(true);
   };
 
   // Helper to construct WhatsApp / SMS text

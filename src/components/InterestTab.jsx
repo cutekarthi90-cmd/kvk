@@ -142,18 +142,46 @@ export const getLoanDueDetails = (loan, loanPayments = []) => {
 
   if (isAnnual) {
     // Annual reminder: based on loan startDate or anniversary
-    const sDate = loan.startDate ? new Date(loan.startDate) : (loan.createdAt ? new Date(loan.createdAt) : now);
-    const annMonth = isNaN(sDate.getTime()) ? 0 : sDate.getMonth();
-    const annDay = isNaN(sDate.getTime()) ? 1 : sDate.getDate();
+    let annYear = currentYear;
+    let annMonth = 0;
+    let annDay = 1;
 
-    // Candidate 1: Anniversary this year
-    let targetYear = currentYear;
+    if (loan.startDate && typeof loan.startDate === 'string' && loan.startDate.includes('-')) {
+      const parts = loan.startDate.split('-');
+      annYear = parseInt(parts[0], 10) || currentYear;
+      annMonth = (parseInt(parts[1], 10) || 1) - 1;
+      annDay = parseInt(parts[2], 10) || 1;
+    } else {
+      const sDate = loan.startDate ? new Date(loan.startDate) : (loan.createdAt ? new Date(loan.createdAt) : now);
+      annYear = isNaN(sDate.getTime()) ? currentYear : sDate.getFullYear();
+      annMonth = isNaN(sDate.getTime()) ? 0 : sDate.getMonth();
+      annDay = isNaN(sDate.getTime()) ? 1 : sDate.getDate();
+    }
+
+    // The first annual anniversary can NEVER be on or before the loan start date!
+    // It must be at least annYear + 1.
+    // For loans taken in prior years, start with this year's anniversary.
+    let targetYear = Math.max(currentYear, annYear + 1);
     let targetDate = new Date(targetYear, annMonth, annDay);
 
-    // If this year's anniversary was more than 30 days ago, look to next year's anniversary
+    // If targetYear is currentYear, check if this year's anniversary was more than 30 days ago:
+    // If it was more than 30 days ago, roll over to next year's anniversary.
     const msPast = todayMidnight.getTime() - targetDate.getTime();
     const daysPast = msPast / (1000 * 60 * 60 * 24);
     if (daysPast > 30) {
+      targetYear += 1;
+      targetDate = new Date(targetYear, annMonth, annDay);
+    }
+
+    // Check if interest was recently paid within 10 months (300 days)
+    const hasPaidRecently = loanPayments.some((pmt) => {
+      if (!pmt.date) return false;
+      const pDate = new Date(pmt.date);
+      const daysSincePmt = (todayMidnight.getTime() - pDate.getTime()) / (1000 * 60 * 60 * 24);
+      return daysSincePmt >= 0 && daysSincePmt < 300 && (Number(pmt.interestAmount) > 0 || Number(pmt.principalRepaid) > 0);
+    });
+
+    if (hasPaidRecently && (targetDate.getTime() - todayMidnight.getTime()) <= 30 * 24 * 60 * 60 * 1000) {
       targetYear += 1;
       targetDate = new Date(targetYear, annMonth, annDay);
     }
