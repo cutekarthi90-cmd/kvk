@@ -15,136 +15,187 @@
       "name": "லைன் மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679523692",
       "name": "நாடு மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 40,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 40
+      }
     },
     {
       "id": "item-1793679610174",
       "name": "அரியலூர் மஞ்சள் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679670961",
       "name": "சின்ன வெள்ளை சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679700075",
       "name": "சிகப்பு சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679729784",
       "name": "மாஞ்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679757695",
       "name": "தரக்கனாமி சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679794191",
       "name": "மானாவாரி சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679817570",
       "name": "பீஜாப்பூர் சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679842658",
       "name": "மக்காச்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 40,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 40
+      }
     },
     {
       "id": "item-1793679862054",
       "name": "காரிச்சோளம்",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     },
     {
       "id": "item-1793679879079",
       "name": "கொல்லு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 90,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 90
+      }
     },
     {
       "id": "item-1793679891344",
       "name": "கம்பு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 200,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 200
+      }
     },
     {
       "id": "item-1793679924242",
       "name": "தட்டைப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 60,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 60
+      }
     },
     {
       "id": "item-1793679991224",
       "name": "நரிப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 60,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 60
+      }
     },
     {
       "id": "item-1793680061589",
       "name": "பச்சைப்பயறு",
       "price": 0,
       "purchasePrice": 0,
-      "initialStock": 0,
-      "unit": "Bag"
+      "initialStock": 110,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 110
+      }
     },
     {
       "id": "item-1793176205343",
       "name": "MANJAL CHOLAM",
       "price": 5000,
       "purchasePrice": 4250,
-      "initialStock": 10,
-      "unit": "Bag"
+      "initialStock": 50,
+      "unit": "Bag",
+      "godownInitialStock": {
+        "குடோன் 1 (Godown 1)": 50
+      }
     }
   ],
   "customers": [
@@ -984,7 +1035,7 @@
       "phone": "9715422499",
       "address": "Thulukkanpalayam",
       "notes": "",
-      "openingBalance": 0,
+      "openingBalance": 60000,
       "openingBalanceType": "DEBIT",
       "createdAt": "2026-10-28T08:28:14.899Z"
     }
@@ -1045,7 +1096,8 @@
       "grandTotal": 706000,
       "paymentStatus": "UNPAID",
       "notes": "",
-      "createdAt": "2026-11-11T15:18:30.076Z"
+      "createdAt": "2026-11-11T15:18:30.076Z",
+      "godown": "குடோன் 1 (Godown 1)"
     },
     {
       "id": "pur-1794410425788",
@@ -1073,10 +1125,11 @@
       "grandTotal": 537850,
       "paymentStatus": "UNPAID",
       "notes": "",
-      "createdAt": "2026-11-11T15:20:25.788Z"
+      "createdAt": "2026-11-11T15:20:25.788Z",
+      "godown": "குடோன் 1 (Godown 1)"
     }
   ],
-  "lastUpdated": "2026-11-14T05:06:54.165Z",
+  "lastUpdated": "2026-11-24T11:18:03.457Z_restored",
   "suppliers": [
     {
       "id": "sup-1793803586539",
@@ -1175,6 +1228,9 @@
       "interestRate": 1.5,
       "monthlyInterest": 16500,
       "startDate": "2026-08-15",
+      "dueDay": 15,
+      "remindMe": true,
+      "reminderFrequency": "MONTHLY",
       "notes": "",
       "createdAt": "2026-11-06T10:16:42.278Z"
     }
@@ -1251,5 +1307,8 @@
     "exp-1794302198642",
     "exp-1794299397041",
     "v-rcpt"
+  ],
+  "godowns": [
+    "குடோன் 1 (Godown 1)"
   ]
 }

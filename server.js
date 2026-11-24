@@ -1312,9 +1312,24 @@ const DEFAULT_DB = {
       "createdAt": "2026-11-04T07:03:07.661Z"
     }
   ],
-  "interestLoans": [],
+  "interestLoans": [
+    {
+      "id": "loan-1793960202277",
+      "lenderName": "M.N.A பாலு",
+      "lenderPhone": "9842921972",
+      "principalAmount": 1100000,
+      "interestRate": 1.5,
+      "monthlyInterest": 16500,
+      "startDate": "2026-08-15",
+      "dueDay": 15,
+      "remindMe": true,
+      "reminderFrequency": "MONTHLY",
+      "notes": "",
+      "createdAt": "2026-11-06T10:16:42.278Z"
+    }
+  ],
   "interestPayments": [],
-  "godowns": []
+  "godowns": ["குடோன் 1 (Godown 1)"]
 };
 
 const readDB = () => {
