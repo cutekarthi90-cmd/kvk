@@ -81,6 +81,34 @@ export default function App() {
       if (document.visibilityState === 'visible') checkAppVersion();
     });
 
+    // Daily 8:00 PM IST Auto Backup Check
+    const checkDailyAutoBackup = () => {
+      try {
+        const now = new Date();
+        const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+        const istTimeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' });
+        const [hours] = istTimeStr.split(':').map(Number);
+
+        if (hours >= 20) {
+          const lastClientBackup = localStorage.getItem('kvk_last_8pm_backup_date');
+          if (lastClientBackup !== istDateStr) {
+            console.log(`[CLIENT-BACKUP] Triggering daily 8 PM auto backup for ${istDateStr}...`);
+            Storage.saveDailyAutoBackup('daily_8pm');
+            localStorage.setItem('kvk_last_8pm_backup_date', istDateStr);
+            fetch('/api/backups/create', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tag: 'daily_8pm' }),
+            }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error('Error in daily auto backup timer:', e);
+      }
+    };
+    checkDailyAutoBackup();
+    const autoBackupInterval = setInterval(checkDailyAutoBackup, 60 * 1000);
+
     SyncService.init({
       onStatusChange: (status) => {
         setSyncStatus(status);

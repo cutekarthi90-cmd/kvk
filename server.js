@@ -1767,6 +1767,187 @@ app.get('/api/version', (req, res) => {
   res.json({ version: BUILD_VERSION });
 });
 
+// ==========================================
+// 🛡️ DAILY 8:00 PM IST AUTO BACKUP SYSTEM
+// ==========================================
+const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
+if (!fs.existsSync(BACKUPS_DIR)) {
+  fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+}
+
+const getISTTime = () => {
+  const now = new Date();
+  const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+  const istTimeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' }); // HH:MM:SS
+  const [hours, minutes] = istTimeStr.split(':').map(Number);
+  return { dateStr: istDateStr, timeStr: istTimeStr, hours, minutes, raw: now };
+};
+
+const pruneOldBackups = (maxAgeDays = 30) => {
+  try {
+    if (!fs.existsSync(BACKUPS_DIR)) return;
+    const files = fs.readdirSync(BACKUPS_DIR);
+    const now = Date.now();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+
+    files.forEach((file) => {
+      if (!file.endsWith('.json')) return;
+      const filePath = path.join(BACKUPS_DIR, file);
+      const stats = fs.statSync(filePath);
+      if (now - stats.mtimeMs > maxAgeMs) {
+        fs.unlinkSync(filePath);
+        console.log(`[AUTO-BACKUP] Pruned old backup: ${file}`);
+      }
+    });
+  } catch (e) {
+    console.error('[AUTO-BACKUP] Error pruning backups:', e);
+  }
+};
+
+const performBackup = (tag = 'manual') => {
+  try {
+    const db = readDB();
+    const { dateStr, timeStr } = getISTTime();
+    const timeClean = timeStr.replace(/:/g, '-');
+    const filename = `kvk_backup_${dateStr}_${timeClean}_${tag}.json`;
+    const filePath = path.join(BACKUPS_DIR, filename);
+
+    const backupPayload = {
+      ...db,
+      _backupMeta: {
+        tag,
+        createdAtIST: `${dateStr} ${timeStr}`,
+        createdTimestamp: Date.now(),
+        customersCount: (db.customers || []).length,
+        itemsCount: (db.items || []).length,
+        salesCount: (db.sales || []).length,
+        receiptsCount: (db.receipts || []).length,
+        loansCount: (db.interestLoans || []).length,
+      },
+    };
+
+    fs.writeFileSync(filePath, JSON.stringify(backupPayload, null, 2), 'utf-8');
+    console.log(`[AUTO-BACKUP] Successfully created ${filename} at ${dateStr} ${timeStr} IST`);
+
+    pruneOldBackups(30);
+
+    return {
+      success: true,
+      filename,
+      createdAtIST: `${dateStr} ${timeStr}`,
+      meta: backupPayload._backupMeta,
+    };
+  } catch (err) {
+    console.error('[AUTO-BACKUP] Failed to create backup:', err);
+    return { success: false, error: err.message };
+  }
+};
+
+let lastAutoBackupDate = null;
+try {
+  const { dateStr } = getISTTime();
+  if (fs.existsSync(BACKUPS_DIR)) {
+    const files = fs.readdirSync(BACKUPS_DIR);
+    const hasToday8pm = files.some(
+      (f) => f.startsWith(`kvk_backup_${dateStr}`) && f.includes('daily_8pm')
+    );
+    if (hasToday8pm) {
+      lastAutoBackupDate = dateStr;
+    }
+  }
+} catch {}
+
+// Check every 30 seconds for 8:00 PM (20:00) IST trigger
+setInterval(() => {
+  try {
+    const { dateStr, hours } = getISTTime();
+    if (hours >= 20 && lastAutoBackupDate !== dateStr) {
+      console.log(`[AUTO-BACKUP] Triggering scheduled Daily 8:00 PM IST Auto Backup for ${dateStr}...`);
+      const result = performBackup('daily_8pm');
+      if (result.success) {
+        lastAutoBackupDate = dateStr;
+      }
+    }
+  } catch (e) {
+    console.error('[AUTO-BACKUP] Scheduler interval error:', e);
+  }
+}, 30 * 1000);
+
+// API: List Backups
+app.get('/api/backups', (req, res) => {
+  try {
+    if (!fs.existsSync(BACKUPS_DIR)) {
+      return res.json({ success: true, backups: [] });
+    }
+    const files = fs.readdirSync(BACKUPS_DIR).filter((f) => f.endsWith('.json'));
+    const list = files.map((file) => {
+      const filePath = path.join(BACKUPS_DIR, file);
+      const stats = fs.statSync(filePath);
+      return {
+        filename: file,
+        sizeKB: Math.round(stats.size / 1024),
+        modified: stats.mtime,
+        isDaily8pm: file.includes('daily_8pm'),
+      };
+    }).sort((a, b) => b.modified - a.modified);
+
+    const { dateStr, timeStr, hours } = getISTTime();
+    res.json({
+      success: true,
+      backups: list,
+      serverTimeIST: `${dateStr} ${timeStr}`,
+      lastDailyBackupDate,
+      nextScheduledBackup: hours < 20 ? `Today at 08:00 PM IST (${dateStr})` : `Tomorrow at 08:00 PM IST`,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// API: Download Backup File
+app.get('/api/backups/download/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(BACKUPS_DIR, safeFilename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ success: false, error: 'Backup file not found' });
+  }
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}"`);
+  res.sendFile(filePath);
+});
+
+// API: Manually trigger backup
+app.post('/api/backups/create', (req, res) => {
+  const tag = req.body?.tag || 'manual';
+  const result = performBackup(tag);
+  res.json(result);
+});
+
+// API: Restore Backup from file
+app.post('/api/backups/restore/:filename', (req, res) => {
+  const { filename } = req.params;
+  const safeFilename = path.basename(filename);
+  const filePath = path.join(BACKUPS_DIR, safeFilename);
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ success: false, error: 'Backup file not found' });
+  }
+
+  try {
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(content);
+    delete parsed._backupMeta;
+    writeDB(parsed);
+    broadcast({ type: 'LIVE_UPDATE', action: 'CLIENT_SYNC_STATE', payload: parsed, fullData: parsed });
+    res.json({ success: true, message: `Successfully restored from ${safeFilename}`, db: parsed });
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Failed to restore: ' + err.message });
+  }
+});
+
 // Serve the lightning-fast production bundle directly to phones!
 if (fs.existsSync(DIST_DIR)) {
   // 1. Assets with hash in filename (e.g. /assets/index-CaLUr09n.css) can be safely cached

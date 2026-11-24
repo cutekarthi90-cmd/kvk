@@ -2006,6 +2006,8 @@ export const Storage = {
       expenses: Storage.getExpenses(),
       interestLoans: Storage.getInterestLoans(),
       interestPayments: Storage.getInterestPayments(),
+      godowns: Storage.getGodowns(),
+      deletedGodowns: Storage.getDeletedGodowns(),
       deletedIds: Storage.getDeletedIds(),
       exportDate: new Date().toISOString(),
       version: '3.0',
@@ -2027,11 +2029,56 @@ export const Storage = {
       if (Array.isArray(data.expenses)) Storage.saveExpenses(data.expenses);
       if (Array.isArray(data.interestLoans)) Storage.saveInterestLoans(data.interestLoans);
       if (Array.isArray(data.interestPayments)) Storage.saveInterestPayments(data.interestPayments);
+      if (Array.isArray(data.godowns)) Storage.saveGodowns(data.godowns);
+      if (Array.isArray(data.deletedGodowns)) Storage.saveDeletedGodowns(data.deletedGodowns);
+      if (Array.isArray(data.deletedIds)) Storage.saveDeletedIds(data.deletedIds);
       return true;
     } catch (e) {
       console.error('Failed to restore backup', e);
       return false;
     }
+  },
+
+  // Daily Auto Backup Local Persistence
+  saveDailyAutoBackup: (tag = 'daily_8pm') => {
+    try {
+      const now = new Date();
+      const istDateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const istTimeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata' });
+      const backupJson = Storage.exportBackupData();
+
+      const key = `kvk_autobackup_${istDateStr}`;
+      localStorage.setItem(key, backupJson);
+
+      const historyKey = 'kvk_autobackup_history';
+      const history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+      const filtered = history.filter((h) => h.date !== istDateStr);
+      filtered.unshift({
+        date: istDateStr,
+        time: istTimeStr,
+        tag,
+        key,
+        timestamp: Date.now(),
+      });
+      localStorage.setItem(historyKey, JSON.stringify(filtered.slice(0, 14)));
+      return { success: true, date: istDateStr, time: istTimeStr };
+    } catch (e) {
+      console.error('Error saving local daily backup:', e);
+      return { success: false, error: e.message };
+    }
+  },
+
+  getLocalAutoBackups: () => {
+    try {
+      const historyKey = 'kvk_autobackup_history';
+      return JSON.parse(localStorage.getItem(historyKey) || '[]');
+    } catch {
+      return [];
+    }
+  },
+
+  getLocalAutoBackupData: (key) => {
+    return localStorage.getItem(key);
   },
 
   resetToDefault: () => {

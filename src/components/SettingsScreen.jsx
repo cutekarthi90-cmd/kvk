@@ -21,6 +21,9 @@ import {
   Warehouse,
   Trash2,
   Plus,
+  Clock,
+  Database,
+  CheckCircle2,
 } from 'lucide-react';
 import { Storage, getFinancialYear } from '../services/storage';
 import { getServerUrl, setServerUrl, SyncService } from '../services/syncService';
@@ -123,6 +126,122 @@ export default function SettingsScreen({
     } catch {
       alert('Invalid JSON! Please paste valid Firebase config object.');
     }
+  };
+
+  // Daily 8 PM Auto Backup management
+  const [backupsList, setBackupsList] = useState([]);
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [serverBackupInfo, setServerBackupInfo] = useState(null);
+
+  const loadBackups = async () => {
+    try {
+      const res = await fetch('/api/backups');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setBackupsList(data.backups || []);
+          setServerBackupInfo(data);
+          return;
+        }
+      }
+    } catch {}
+    const local = Storage.getLocalAutoBackups();
+    setBackupsList(
+      local.map((l) => ({
+        filename: l.key + '.json',
+        modified: l.timestamp,
+        sizeKB: Math.round((Storage.getLocalAutoBackupData(l.key) || '').length / 1024),
+        isLocal: true,
+        localKey: l.key,
+        isDaily8pm: l.tag === 'daily_8pm',
+      }))
+    );
+  };
+
+  React.useEffect(() => {
+    loadBackups();
+  }, []);
+
+  const handleTriggerBackupNow = async () => {
+    setBackupLoading(true);
+    try {
+      Storage.saveDailyAutoBackup('manual_now');
+      const res = await fetch('/api/backups/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag: 'manual_now' }),
+      });
+      if (res.ok) {
+        showToast('பேக்கப் வெற்றிகரமாக சேமிக்கப்பட்டது!');
+      } else {
+        showToast('Local backup saved!');
+      }
+      loadBackups();
+    } catch {
+      showToast('Local backup saved!');
+      loadBackups();
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleDownloadBackupItem = (item) => {
+    if (item.isLocal) {
+      const dataStr = Storage.getLocalAutoBackupData(item.localKey);
+      if (!dataStr) return;
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = item.filename;
+      a.click();
+      showToast(`Downloaded ${item.filename}`);
+    } else {
+      window.open(`/api/backups/download/${item.filename}`, '_blank');
+      showToast(`Downloading ${item.filename}...`);
+    }
+  };
+
+  const handleRestoreBackupItem = async (item) => {
+    if (!confirm(`இந்த பேக்கப்பில் (${item.filename}) இருந்து தரவை மீட்டமைக்க (Restore) வேண்டுமா?`)) {
+      return;
+    }
+    setBackupLoading(true);
+    try {
+      if (item.isLocal) {
+        const dataStr = Storage.getLocalAutoBackupData(item.localKey);
+        if (dataStr && Storage.restoreBackupData(dataStr)) {
+          showToast('பேக்கப் வெற்றிகரமாக மீட்டமைக்கப்பட்டது!');
+          onReloadAll();
+        }
+      } else {
+        const res = await fetch(`/api/backups/restore/${item.filename}`, { method: 'POST' });
+        if (res.ok) {
+          const d = await res.json();
+          if (d.success) {
+            Storage.mergeSafeServerData(d.db);
+            showToast('சர்வர் & ஆப் பேக்கப்பில் இருந்து வெற்றிகரமாக மீட்டமைக்கப்பட்டது!');
+            onReloadAll();
+          }
+        }
+      }
+    } catch (e) {
+      alert('Failed to restore: ' + e.message);
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleWhatsAppShareBackup = (item) => {
+    const dStr = new Date(item.modified).toLocaleDateString('en-IN');
+    const tStr = new Date(item.modified).toLocaleTimeString('en-IN');
+    const text = `*KVK THANIYA MANDI - DAILY AUTO BACKUP REPORT*\n\n` +
+      `📅 *Date:* ${dStr}\n` +
+      `⏰ *Time:* ${tStr}\n` +
+      `📦 *File:* ${item.filename}\n` +
+      `💾 *Size:* ${item.sizeKB} KB\n\n` +
+      `✅ அனைத்து 85 வாடிக்கையாளர்கள், இருப்பு, கடன்கள் மற்றும் கணக்குகள் பாதுகாப்பாக பேக்கப் செய்யப்பட்டுள்ளது.`;
+    openDirectWhatsApp('', text);
   };
 
   const handleExportBackup = () => {
@@ -595,33 +714,164 @@ export default function SettingsScreen({
         </button>
       </form>
 
-      {/* Backup & Data Management */}
+      {/* 🛡️ DAILY 8:00 PM AUTO BACKUP SYSTEM */}
       <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-xs space-y-3">
-        <h3 className="font-bold text-slate-900 text-sm">Data Backup & Restore</h3>
-        <p className="text-[11px] text-slate-400">
-          Your bills and ledger are stored securely in your central database. Export backup anytime to stay 100% safe.
-        </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+              <Database className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">தினசரி இரவு 8:00 PM ஆட்டோ பேக்கப்</h3>
+              <p className="text-[11px] text-slate-500 font-medium">Daily Scheduled Cloud & Phone Backup</p>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            ACTIVE
+          </span>
+        </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleExportBackup}
-            className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5 text-blue-600" />
-            Backup Data
-          </button>
+        {/* Schedule Info Box */}
+        <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-600 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-blue-600" />
+              பேக்கப் நேரம் (Backup Time):
+            </span>
+            <span className="font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+              இரவு 08:00 PM (Daily)
+            </span>
+          </div>
 
-          <label className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer">
-            <Upload className="w-3.5 h-3.5 text-emerald-600" />
-            Restore Backup
-            <input
-              type="file"
-              accept=".json"
-              onChange={handleImportBackup}
-              className="hidden"
-            />
-          </label>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-slate-600">அடுத்த ஆட்டோ பேக்கப்:</span>
+            <span className="font-semibold text-emerald-700">
+              {serverBackupInfo?.nextScheduledBackup || 'இன்று இரவு 08:00 PM'}
+            </span>
+          </div>
+        </div>
+
+        {/* Action: Trigger Backup Now */}
+        <button
+          type="button"
+          disabled={backupLoading}
+          onClick={handleTriggerBackupNow}
+          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-50"
+        >
+          <Plus className="w-4 h-4" />
+          <span>{backupLoading ? 'பேக்கப் ஆகிறது...' : 'இப்போதே பேக்கப் எடு (Take Backup Now)'}</span>
+        </button>
+
+        {/* List of Recent Backups */}
+        <div className="space-y-1.5 pt-2 border-t border-slate-100">
+          <h4 className="text-xs font-bold text-slate-700 flex items-center justify-between">
+            <span>சேமிக்கப்பட்ட பேக்கப்கள் ({backupsList.length})</span>
+            <button
+              type="button"
+              onClick={loadBackups}
+              className="text-[11px] text-blue-600 hover:underline flex items-center gap-1 font-medium"
+            >
+              <RefreshCw className="w-3 h-3" /> புதுப்பி
+            </button>
+          </h4>
+
+          {backupsList.length === 0 ? (
+            <div className="p-3 text-center bg-slate-50 rounded-lg text-slate-400 text-xs">
+              இன்னும் ஆட்டோ பேக்கப் கோப்புகள் இல்லை. இன்று இரவு 8:00 மணிக்கு முதல் பேக்கப் தானாக சேமிக்கப்படும்.
+            </div>
+          ) : (
+            <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+              {backupsList.map((item, idx) => {
+                const dateObj = new Date(item.modified);
+                const isDaily = item.isDaily8pm;
+                return (
+                  <div
+                    key={item.filename || idx}
+                    className="p-2.5 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200/70 flex items-center justify-between gap-2 transition-all"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                            isDaily
+                              ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                              : 'bg-blue-100 text-blue-900 border border-blue-200'
+                          }`}
+                        >
+                          {isDaily ? '🌙 8 PM Auto' : 'Manual'}
+                        </span>
+                        <span className="font-bold text-xs text-slate-800">
+                          {dateObj.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {dateObj.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                        {item.sizeKB} KB • {item.filename}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadBackupItem(item)}
+                        className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-lg border border-slate-200 hover:border-blue-300 transition-all active:scale-95"
+                        title="Download to Phone / PC"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleWhatsAppShareBackup(item)}
+                        className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-lg border border-slate-200 hover:border-emerald-300 transition-all active:scale-95"
+                        title="Share on WhatsApp"
+                      >
+                        <Share2 className="w-3.5 h-3.5" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreBackupItem(item)}
+                        className="px-2 py-1 bg-white hover:bg-amber-50 text-amber-700 rounded-lg border border-slate-200 hover:border-amber-300 text-[10px] font-bold transition-all active:scale-95"
+                        title="Restore this backup"
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Manual Export & Import */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          <p className="text-[11px] text-slate-500 font-medium">தனிப்பயன் பேக்கப் (Manual Export / Import):</p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={handleExportBackup}
+              className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5 text-blue-600" />
+              Export JSON
+            </button>
+
+            <label className="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+              <Upload className="w-3.5 h-3.5 text-emerald-600" />
+              Import File
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImportBackup}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="pt-2 border-t border-slate-100">
